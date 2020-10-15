@@ -1,10 +1,11 @@
 #include <mpi.h>
 
 double serial_trap_eval(double (*f)(double), double a, double b, int num_trap) {
-	double h = (b-a)/n;
+	double h = (b-a)/num_trap;
 	double sum = 0;
+	int i;
 	
-	for (i = 1; i < n; i++)
+	for (i = 1; i < num_trap; i++)
 	{
 		sum += f(a + i * h);
 	}

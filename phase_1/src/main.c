@@ -7,13 +7,13 @@
 int main(void) {
 	int my_rank;
 	size_t num_tests = 1;
-	size_t tests_per_func = 50;
+	size_t tests_per_func = 5000;
 	
 	// testing input data
-	double (*func_list[num_tests])(double) = {
+	double (*func_list[])(double) = {
 		quadratic_a
 	};
-	char * func_names[num_tests] = {
+	char * func_names[] = {
 		"quadratic a"
 	};
 	double a_inputs[num_tests];
@@ -42,13 +42,13 @@ int main(void) {
 					"Enter left boundary, right boundary, and # of sub-intervals for function \"%s\":\n",
 					func_names[test_count]
 			);
-			scanf("%lf %lf $d", &a, &b, &n);
+			scanf("%lf %lf %d", &a, &b, &n);
 		}
 		
 		// share input results to other processes
 		MPI_Bcast(&a, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 		MPI_Bcast(&b, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-		MPI_Bcast(&h, 1, MPI_INT, 0, MPI_COMM_WORLD);
+		MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 		
 		// store into arrays
 		a_inputs[test_count] = a;
@@ -57,7 +57,7 @@ int main(void) {
 	}
 	
 	// conduct timed tests for parallel implmentation
-	double start_time, end_time, local_elapsed_time, elapsed_time;
+	double start_time, end_time, local_elapsed_time, elapsed_time, integral;
 	size_t i;
 	for (test_count = 0; test_count < num_tests; test_count++) {
 		
@@ -65,7 +65,7 @@ int main(void) {
 			// do timer setup
 			// start timer
 			MPI_Barrier(MPI_COMM_WORLD);
-			MPI_Wtime(start_time);
+			start_time = MPI_Wtime();
 			
 			// do trapezoidal rule
 			integral = parallel_trap_eval(
@@ -76,7 +76,7 @@ int main(void) {
 			);
 			
 			// end timer
-			MPI_Wtime(end_time);
+			end_time = MPI_Wtime();
 			local_elapsed_time = end_time - start_time;
 			MPI_Reduce(&local_elapsed_time, &elapsed_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 		
@@ -95,7 +95,7 @@ int main(void) {
 	if (my_rank == 0) {
 		for (test_count = 0; test_count < num_tests; test_count++) {
 			printf(
-				"Estimate / Mean Execution Time for function \"%s\", tested %d times with a=%lf, b=%lf, sub-integrals=%d: %lf / %lf",
+				"Estimate / Mean Execution Time for function \"%s\", tested %d times with a=%lf, b=%lf, sub-integrals=%d: %lf / %lf\n",
 				func_names[test_count],
 				tests_per_func,
 				a_inputs[test_count],
