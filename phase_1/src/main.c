@@ -23,7 +23,6 @@ int main(void) {
 	// testing output data
 	double parallel_integrals[num_tests];
 	double parallel_exec_times[num_tests];
-	double serial_integrals[num_tests];
 	double serial_exec_times[num_tests];
 	
 	// start MPI
@@ -91,17 +90,35 @@ int main(void) {
 		}
 	}
 	
+	// conduct timed tests for serial implmentation on proc 0
+	if (my_rank == 0) {
+		for (test_count = 0; test_count < num_tests; test_count++) {
+			for (i = 0; i < tests_per_func; i++) {
+				start_time = MPI_Wtime();
+				integral = serial_trap_eval(
+					func_list[test_count],
+					a_inputs[test_count],
+					b_inputs[test_count],
+					trap_count_inputs[test_count]
+				);
+				end_time = MPI_Wtime();
+				serial_exec_times[test_count] += end_time - start_time;
+			}
+			serial_exec_times[test_count] /= tests_per_func;
+		}
+	}
+	
 	// TODO: display output
 	if (my_rank == 0) {
 		for (test_count = 0; test_count < num_tests; test_count++) {
 			printf(
-				"Estimate / Mean Execution Time for function \"%s\", tested %d times with a=%lf, b=%lf, sub-integrals=%d: %lf / %lf\n",
+				"Serial / Parallel times for function \"%s\", tested %d times with a=%lf, b=%lf, sub-integrals=%d: %lf / %lf\n",
 				func_names[test_count],
 				tests_per_func,
 				a_inputs[test_count],
 				b_inputs[test_count],
 				trap_count_inputs[test_count],
-				parallel_integrals[test_count],
+				serial_exec_times[test_count],
 				parallel_exec_times[test_count]
 			);
 		}
