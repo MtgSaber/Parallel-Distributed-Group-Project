@@ -7,6 +7,7 @@
 int main(void) {
 	int my_rank;
 	size_t num_tests = 1;
+	size_t tests_per_func = 50;
 	
 	// testing input data
 	double (*func_list[num_tests])(double) = {
@@ -20,8 +21,10 @@ int main(void) {
 	int trap_count_inputs[num_tests];
 	
 	// testing output data
-	double integrals[num_tests];
-	double exec_times[num_tests];
+	double parallel_integrals[num_tests];
+	double parallel_exec_times[num_tests];
+	double serial_integrals[num_tests];
+	double serial_exec_times[num_tests];
 	
 	// start MPI
 	MPI_Init(NULL, NULL);
@@ -53,35 +56,56 @@ int main(void) {
 		trap_count_inputs[test_count] = n;
 	}
 	
-	// conduct timed tests
+	// conduct timed tests for parallel implmentation
 	double start_time, end_time, local_elapsed_time, elapsed_time;
+	size_t i;
 	for (test_count = 0; test_count < num_tests; test_count++) {
-		// do timer setup
-		// start timer
-		MPI_Barrier(MPI_COMM_WORLD);
-		MPI_Wtime(start_time);
 		
-		// do trapezoidal rule
-		integral = parallel_trap_eval(
-				func_list[test_count],
-				a_inputs[test_count],
-				b_inputs[test_count],
-				trap_count_inputs[test_count]
-		);
+		for (i = 0; i < tests_per_func; i++) {
+			// do timer setup
+			// start timer
+			MPI_Barrier(MPI_COMM_WORLD);
+			MPI_Wtime(start_time);
+			
+			// do trapezoidal rule
+			integral = parallel_trap_eval(
+					func_list[test_count],
+					a_inputs[test_count],
+					b_inputs[test_count],
+					trap_count_inputs[test_count]
+			);
+			
+			// end timer
+			MPI_Wtime(end_time);
+			local_elapsed_time = end_time - start_time;
+			MPI_Reduce(&local_elapsed_time, &elapsed_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 		
-		// end timer
-		MPI_Wtime(end_time);
-		local_elapsed_time = end_time - start_time;
-		MPI_Reduce(&local_elapsed_time, &elapsed_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-		
-		// record time and result
+			// record time and result
+			if (my_rank == 0) {
+				parallel_integrals[test_count] = integral;
+				parallel_exec_times[test_count] += elapsed_time;
+			}
+		}
 		if (my_rank == 0) {
-			integrals[test_count] = integral;
-			exec_times[test_count] = elapsed_time;
+			parallel_exec_times[test_count] /= tests_per_func;
 		}
 	}
 	
 	// TODO: display output
+	if (my_rank == 0) {
+		for (test_count = 0; test_count < num_tests; test_count++) {
+			printf(
+				"Estimate / Mean Execution Time for function \"%s\", tested %d times with a=%lf, b=%lf, sub-integrals=%d: %lf / %lf",
+				func_names[test_count],
+				tests_per_func,
+				a_inputs[test_count],
+				b_inputs[test_count],
+				trap_count_inputs[test_count],
+				parallel_integrals[test_count],
+				parallel_exec_times[test_count]
+			);
+		}
+	}
 	
 	MPI_Finalize();
 	return 0;
