@@ -6,19 +6,45 @@
 
 int main(void) {
 	int my_rank;
-	size_t num_tests = 1;
-	size_t tests_per_func = 5000;
+	size_t num_tests = 5;
+	size_t tests_per_func = 10000;
 	
 	// testing input data
 	double (*func_list[])(double) = {
-		quadratic_a
+		quadratic_a,
+		quadratic_b,
+		exponential,
+		logarithmic,
+		inverse
 	};
 	char * func_names[] = {
-		"quadratic a"
+		"quadratic a",
+		"quadratic_b",
+		"exponential",
+		"logarithmic",
+		"inverse"
 	};
-	double a_inputs[num_tests];
-	double b_inputs[num_tests];
-	int trap_count_inputs[num_tests];
+	double a_inputs[] = {
+		0,
+		0,
+		0,
+		0,
+		0
+	};
+	double b_inputs[]  = {
+		100,
+		100,
+		100,
+		100,
+		100
+	};
+	int trap_count_inputs[] = {
+		1000,
+		1000,
+		1000,
+		1000,
+		1000
+	};
 	
 	// testing output data
 	double parallel_integrals[num_tests];
@@ -29,8 +55,10 @@ int main(void) {
 	MPI_Init(NULL, NULL);
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 	
+
 	// get input data
 	size_t test_count;
+	/*
 	for (test_count = 0; test_count < num_tests; test_count++) {
 		double a, b;
 		int n;
@@ -54,6 +82,7 @@ int main(void) {
 		b_inputs[test_count] = b;
 		trap_count_inputs[test_count] = n;
 	}
+	*/
 	
 	// conduct timed tests for parallel implmentation
 	double start_time, end_time, local_elapsed_time, elapsed_time, integral;
