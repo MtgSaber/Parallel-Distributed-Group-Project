@@ -1,9 +1,15 @@
 #include <mpi.h>
 
 double serial_trap_eval(double (*f)(double), double a, double b, int num_trap) {
-	// todo: serial trapezoidal rule implementation
-	// note that to to call the provided numeric function, you need to do: f(x)
-	return 1; // todo: replace with proper result
+	double h = (b-a)/n;
+	double sum = 0;
+	
+	for (i = 1; i < n; i++)
+	{
+		sum += f(a + i * h);
+	}
+	
+	return h/2 * (f(a) + f(b) + 2*sum);
 }
 
 // param fx is function to apply trapezoidal rule to
