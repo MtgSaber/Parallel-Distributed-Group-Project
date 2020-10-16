@@ -49,7 +49,7 @@ int main(void) {
 	// testing output data
 	double parallel_integrals[num_tests];
 	double parallel_exec_times[num_tests];
-	double serial_exec_times[num_tests];
+	//double serial_exec_times[num_tests];
 	
 	// start MPI
 	MPI_Init(NULL, NULL);
@@ -119,6 +119,7 @@ int main(void) {
 		}
 	}
 	
+	/*
 	// conduct timed tests for serial implmentation on proc 0
 	if (my_rank == 0) {
 		for (test_count = 0; test_count < num_tests; test_count++) {
@@ -136,18 +137,18 @@ int main(void) {
 			serial_exec_times[test_count] /= tests_per_func;
 		}
 	}
+	*/
 	
 	// TODO: display output
 	if (my_rank == 0) {
 		for (test_count = 0; test_count < num_tests; test_count++) {
 			printf(
-				"Serial / Parallel times for function \"%s\", tested %d times with a=%lf, b=%lf, sub-integrals=%d: %lf / %lf\n",
+				"Parallel execution time for function \"%s\", tested %d times with a=%lf, b=%lf, sub-integrals=%d: %lf\n",
 				func_names[test_count],
 				tests_per_func,
 				a_inputs[test_count],
 				b_inputs[test_count],
 				trap_count_inputs[test_count],
-				serial_exec_times[test_count],
 				parallel_exec_times[test_count]
 			);
 		}

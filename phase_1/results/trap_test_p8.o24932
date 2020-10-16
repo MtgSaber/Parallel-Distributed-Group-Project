@@ -1,0 +1,5 @@
+Parallel execution time for function "quadratic a", tested 10000 times with a=0.000000, b=100.000000, sub-integrals=1000: 0.000004
+Parallel execution time for function "quadratic_b", tested 10000 times with a=0.000000, b=100.000000, sub-integrals=1000: 0.000004
+Parallel execution time for function "exponential", tested 10000 times with a=0.000000, b=100.000000, sub-integrals=1000: 0.000013
+Parallel execution time for function "logarithmic", tested 10000 times with a=0.000000, b=100.000000, sub-integrals=1000: 0.000009
+Parallel execution time for function "inverse", tested 10000 times with a=0.000000, b=100.000000, sub-integrals=1000: 0.000005
