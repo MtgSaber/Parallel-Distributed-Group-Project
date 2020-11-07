@@ -10,6 +10,7 @@ import java.util.Map;
 public class Config {
     private final Map<String, Resource> RES_TABLE = new HashMap<>();
     private final Map<String, Peer> PEERS = new HashMap<>();
+    private final File CONFIG_FILE;
     public final long RES_MAX_USAGE_TIME;
     public final long PEER_CACHE_TIME_LIMIT;
     public final Peer LOCAL_SUPER_PEER;
@@ -19,10 +20,12 @@ public class Config {
 
     /**
      * Parses the provided file into the configuration fields of this object.
-     * @param resourcesConfigFile the configuration file to parse.
+     * @param configFile the configuration file to parse.
      */
-    public Config(File resourcesConfigFile) {
+    public Config(File configFile) {
         // TODO: open up file as json or XML, parse individual properties, then parse res_table and verify all entries. Discard any discrepancies from the table and save the file.
+        CONFIG_FILE = configFile;
+
         RES_MAX_USAGE_TIME = 0;
         PEER_CACHE_TIME_LIMIT = 0;
         LOCAL_SUPER_PEER = null;
@@ -81,5 +84,12 @@ public class Config {
 
             return peer;
         }
+    }
+
+    /**
+     * Saves the current config state to the config file.
+     */
+    public synchronized void saveToFile() {
+        //TODO: save this config object to this.CONFIG_FILE
     }
 }

@@ -1,5 +1,8 @@
 package net.mtgsaber.uni_projects.cs4504groupproject.data;
 
+/**
+ * This is a basic object to represent cached(non-superpeer) or managed(superpeer) information about a p2p client
+ */
 public class Peer {
     public final String NAME;
     public final String IP_ADDRESS;
