@@ -31,6 +31,7 @@ public class P2PClient implements Runnable, EventHandler {
         running = true;
         while (running) {
             // TODO: client service
+
         }
         // TODO: socket cleanup, thread cleanup, queue cleanup, save config.
     }

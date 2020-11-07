@@ -20,6 +20,7 @@ public class Main {
         eventManagerThread.start();
 
         // start ui session
+        //eventManager.push(new P2PClient.FileDownloadEvent("localClientName", new File("localFileDestination"), "remotePeerName", "remotePeerGroup", "remoteResource"));
     }
 
     private static void createClient(Map<String, Pair<P2PClient, Thread>> p2pClientSpace, EventManager eventManager, String configFileLoc) {
