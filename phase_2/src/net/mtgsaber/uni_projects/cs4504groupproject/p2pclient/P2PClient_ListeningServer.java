@@ -6,6 +6,7 @@ package net.mtgsaber.uni_projects.cs4504groupproject.p2pclient;
  */
 public class P2PClient_ListeningServer implements Runnable {
     private final P2PClient CLIENT;
+    private volatile boolean running;
 
     public P2PClient_ListeningServer(P2PClient client) {
         this.CLIENT = client;
@@ -13,7 +14,19 @@ public class P2PClient_ListeningServer implements Runnable {
 
     @Override
     public void run() {
+        running = true;
+
         // TODO: start listening on the CLIENT's handshake port.
-        // TODO: when a message is received, pass the appropriate event to CLIENT via CLIENT.handle(new Event(...))
+
+        while (running) {
+            // TODO: when a message is received, pass the appropriate event to CLIENT via CLIENT.accept(new Event(...))
+        }
+
+        // TODO: stop listening for messages and release any resources in use.
+    }
+
+    public void shutdown(Thread myThread) {
+        running = false;
+        myThread.interrupt();
     }
 }

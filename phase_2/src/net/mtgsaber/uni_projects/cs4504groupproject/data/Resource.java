@@ -7,15 +7,17 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.concurrent.TimeoutException;
 
-public class Resource {
+public final class Resource {
     private final File file;
     private final FileType type;
     private volatile boolean inUse;
+    private volatile boolean registered;
 
     public Resource(File file) throws FileNotFoundException {
         if (!file.exists()) throw new FileNotFoundException("No such file: " + file.toString());
         this.file = file;
         this.type = null; // TODO: get file type from file name/class-instance
+        this.registered = true;
     }
 
     /**
@@ -25,13 +27,19 @@ public class Resource {
      * @throws InterruptedException if the wait loop is interrupted for any reason.
      * @throws TimeoutException if the
      */
-    public synchronized FileInputStream getFile(Config config) throws InterruptedException, TimeoutException {
+    public synchronized FileInputStream getFileStream(Config config) throws InterruptedException, TimeoutException {
         long startTime = System.currentTimeMillis();
+
+        if (!registered) return null;
+
         while (inUse) {
             Thread.currentThread().sleep(200);
             if (System.currentTimeMillis() - startTime >= config.RES_MAX_USAGE_TIME)
                 throw new TimeoutException("Waited more than " + config.RES_MAX_USAGE_TIME + "ms for this resource to open.");
+            if (!registered) return null;
         }
+
+        if (!registered) return null;
 
         inUse = true;
         try {
@@ -55,4 +63,8 @@ public class Resource {
     public boolean exists() {
         return file.exists();
     }
+
+    public File getFile() { return file; }
+
+    public void unRegister() { registered = false; }
 }
