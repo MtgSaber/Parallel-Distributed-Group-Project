@@ -69,6 +69,8 @@ public class P2PClient implements Consumer<Event> {
     private void hookEventHandlers() {
         CLIENT_EVENT_MANAGER.addHandler(ROUTING_REQUEST_EVENT_NAME, event -> {
             // TODO: use the event and create the socket. try not to slow down the event manager too much.
+//            openSocket();
+
         });
         CLIENT_EVENT_MANAGER.addHandler(TRANSFER_REQUEST_EVENT_NAME, event -> {
             // TODO: use the event and create the socket. try not to slow down the event manager too much.
