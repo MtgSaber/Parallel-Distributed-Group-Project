@@ -1,6 +1,5 @@
 package net.mtgsaber.uni_projects.cs4504groupproject;
 
-import net.mtgsaber.lib.algorithms.Pair;
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.EventManager;
 import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.P2PClient;
@@ -19,7 +18,7 @@ public class Main {
         eventManagerThread.start();
 
         // start ui session
-        //eventManager.push(new P2PClient.FileDownloadEvent("localClientName", new File("localFileDestination"), "remotePeerName", "remotePeerGroup", "remoteResource"));
+        //eventManager.push(new FileDownloadEvent("localClientName", new File("localFileDestination"), "remotePeerName", "remotePeerGroup", "remoteResource"));
     }
 
     private static void createClient(Map<String, P2PClient> p2pClientSpace, EventManager eventManager, String configFileLoc) {

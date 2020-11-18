@@ -20,6 +20,7 @@ public class P2PClient_ListeningServer implements Runnable {
 
         while (running) {
             // TODO: when a message is received, pass the appropriate event to CLIENT via CLIENT.accept(new Event(...))
+
         }
 
         // TODO: stop listening for messages and release any resources in use.
