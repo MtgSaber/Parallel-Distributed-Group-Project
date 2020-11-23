@@ -1,10 +1,13 @@
-package net.mtgsaber.uni_projects.cs4504groupproject;
+package net.mtgsaber.uni_projects.cs4504groupproject.config;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Resource;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -23,22 +26,41 @@ public class Config {
     public final int STARTING_PORT;
     public final int PORT_RANGE;
 
+    private static final Gson GSON = new Gson();
+
     /**
      * Parses the provided file into the configuration fields of this object.
      * @param configFile the configuration file to parse.
      */
-    public Config(File configFile) {
-        // TODO: open up file as json or XML, parse individual properties, then parse res_table and verify all entries. Discard any discrepancies from the table and save the file.
+    public Config(File configFile) throws FileNotFoundException, FormatException {
         // TODO: when loading the config, add each resource entry via the addResource(name, file) method to verify their uniqueness.
         CONFIG_FILE = configFile;
+        ConfigJSON json = GSON.fromJson(new FileReader(configFile), ConfigJSON.class);
+        boolean resMismatch = json.RESOURCE_REGISTRY.RES_MAP_KEYS.length != json.RESOURCE_REGISTRY.RES_MAP_VALS.length;
+        boolean resTimeRange = json.RES_MAX_USAGE_TIME < 1;
+        boolean cacheTimeRange = json.PEER_CACHE_TIME_LIMIT < 0;
+        boolean startPortRange = json.STARTING_PORT < 1025;
+        boolean portRange = json.PORT_RANGE < 0;
+        if (resMismatch || resTimeRange || cacheTimeRange || startPortRange || portRange)
+            throw new FormatException(
+                    "The following format errors were found in config file \"" + configFile.toString() + "\":"
+                    + (resMismatch? "\n\tResourceRegistry: ResourceNames and ResourceFilePaths must have equal length!" : "")
+                    + (resTimeRange? "\n\tResourceMaxUsageTime: Must be greater than 0" : "")
+                    + (cacheTimeRange? "\n\tRoutingCacheEntryLifespan: Must be greater than -1" : "")
+                    + (startPortRange? "\n\tNonHandshakePortRangeStart: Must be greater than 1024" : "")
+                    + (portRange? "\n\tNonHandshakePortRangeSize: Must be greater than -1" : "")
+            );
 
-        RES_MAX_USAGE_TIME = 0;
-        PEER_CACHE_TIME_LIMIT = 0;
-        LOCAL_SUPER_PEER = null;
-        SELF = null;
-        STARTING_PORT = 0;
-        PORT_RANGE = 0;
-        // TODO: remove the above default values
+        // TODO: resource table & registered files
+        for (int i = 0; i < json.RESOURCE_REGISTRY.RES_MAP_KEYS.length; i++) {
+            try {
+                addResource(json.RESOURCE_REGISTRY.RES_MAP_KEYS[i], new File(json.RESOURCE_REGISTRY.RES_MAP_VALS[i]));
+            } catch (FileNotFoundException fnfex) {
+
+            }
+        }
+        // TODO: peer table
+        // TODO: primitive parameters
     }
 
     /**

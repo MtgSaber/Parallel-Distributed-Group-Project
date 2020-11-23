@@ -1,6 +1,6 @@
 package net.mtgsaber.uni_projects.cs4504groupproject.data;
 
-import net.mtgsaber.uni_projects.cs4504groupproject.Config;
+import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
 
 import java.io.File;
 import java.io.FileInputStream;

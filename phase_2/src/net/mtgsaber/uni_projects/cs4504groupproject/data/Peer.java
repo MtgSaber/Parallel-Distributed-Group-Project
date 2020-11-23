@@ -9,7 +9,7 @@ public class Peer {
     public final String GROUP;
     public final boolean IS_SUPER_PEER;
     public final int HANDSHAKE_PORT;
-    public final long CREATION_TIME;
+    private long CREATION_TIME;
 
     public Peer(String name, String ipAddress, String group, boolean isSuperPeer, int handshakePort) {
         this.NAME = name;
@@ -22,5 +22,9 @@ public class Peer {
 
     public long getAge() {
         return System.currentTimeMillis() - CREATION_TIME;
+    }
+
+    public void makePermanent () {
+        CREATION_TIME = Long.MAX_VALUE;
     }
 }

@@ -4,7 +4,7 @@ import net.mtgsaber.lib.algorithms.Pair;
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
-import net.mtgsaber.uni_projects.cs4504groupproject.Config;
+import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
 import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.*;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
 
