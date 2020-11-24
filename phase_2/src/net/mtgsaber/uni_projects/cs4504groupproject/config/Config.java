@@ -1,9 +1,9 @@
 package net.mtgsaber.uni_projects.cs4504groupproject.config;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Resource;
+import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Level;
 
 public class Config {
     private final Map<String, Resource> RES_TABLE = new HashMap<>();
@@ -33,7 +34,7 @@ public class Config {
      * @param configFile the configuration file to parse.
      */
     public Config(File configFile) throws FileNotFoundException, FormatException {
-        // TODO: when loading the config, add each resource entry via the addResource(name, file) method to verify their uniqueness.
+        // when loading the config, add each resource entry via the addResource(name, file) method to verify their uniqueness.
         CONFIG_FILE = configFile;
         ConfigJSON json = GSON.fromJson(new FileReader(configFile), ConfigJSON.class);
         boolean resMismatch = json.RESOURCE_REGISTRY.RES_MAP_KEYS.length != json.RESOURCE_REGISTRY.RES_MAP_VALS.length;
@@ -51,16 +52,28 @@ public class Config {
                     + (portRange? "\n\tNonHandshakePortRangeSize: Must be greater than -1" : "")
             );
 
-        // TODO: resource table & registered files
+        // resource table & registered files
         for (int i = 0; i < json.RESOURCE_REGISTRY.RES_MAP_KEYS.length; i++) {
             try {
                 addResource(json.RESOURCE_REGISTRY.RES_MAP_KEYS[i], new File(json.RESOURCE_REGISTRY.RES_MAP_VALS[i]));
-            } catch (FileNotFoundException fnfex) {
-
+            } catch (TimeoutException ex) {
+                Logging.log(Level.WARNING, "TimeoutException encountered during loading of config file \"" + configFile.toString() + "\". This should not occur.");
             }
         }
-        // TODO: peer table
-        // TODO: primitive parameters
+
+        // peer table
+        for (Peer peer : json.GROUP_PEERS) addPeer(peer);
+        for (Peer peer : json.SUPER_PEERS) addPeer(peer);
+
+        // primitive parameters
+        this.SELF = json.SELF;
+        this.LOCAL_SUPER_PEER = json.LOCAL_SUPER_PEER;
+        this.RES_MAX_USAGE_TIME = json.RES_MAX_USAGE_TIME;
+        this.PEER_CACHE_TIME_LIMIT = json.PEER_CACHE_TIME_LIMIT;
+        this.STARTING_PORT = json.STARTING_PORT;
+        this.PORT_RANGE = json.PORT_RANGE;
+
+        saveToFile();
     }
 
     /**
