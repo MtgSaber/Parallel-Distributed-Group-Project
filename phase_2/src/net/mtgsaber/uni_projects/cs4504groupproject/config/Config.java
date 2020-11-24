@@ -1,6 +1,7 @@
 package net.mtgsaber.uni_projects.cs4504groupproject.config;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Resource;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
@@ -27,7 +28,7 @@ public class Config {
     public final int STARTING_PORT;
     public final int PORT_RANGE;
 
-    private static final Gson GSON = new Gson();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     /**
      * Parses the provided file into the configuration fields of this object.

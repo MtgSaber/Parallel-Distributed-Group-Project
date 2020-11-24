@@ -1,0 +1,69 @@
+{
+  "SelfParams": {
+    "NAME": "Peer1",
+    "IP_ADDRESS": "127.0.0.1",
+    "GROUP": "Group1",
+    "IS_SUPER_PEER": true,
+    "HANDSHAKE_PORT": 65000,
+    "CREATION_TIME": 1606188389001
+  },
+  "GroupSuperpeerInfo": {
+    "NAME": "Peer1",
+    "IP_ADDRESS": "127.0.0.1",
+    "GROUP": "Group1",
+    "IS_SUPER_PEER": true,
+    "HANDSHAKE_PORT": 65000,
+    "CREATION_TIME": 1606188389001
+  },
+  "NonHandshakePortRangeStart": 65001,
+  "NonHandshakePortRangeSize": 8,
+  "ResourceMaxUsageTime": 600000,
+  "RoutingCacheEntryLifespan": 600000,
+  "ResourceRegistry": {
+    "ResourceNames": [
+      "Res1",
+      "Res2",
+      "Res3"
+    ],
+    "ResourceFilePaths": [
+      "./phase_2/test_res/Resource1.txt",
+      "./phase_2/test_res/Resource2.txt",
+      "./phase_2/test_res/Resource3.txt"
+    ]
+  },
+  "SuperpeerRoutingTable": [],
+  "GroupRoutingTable": [
+    {
+      "NAME": "Peer2",
+      "IP_ADDRESS": "127.0.0.1",
+      "GROUP": "Group1",
+      "IS_SUPER_PEER": false,
+      "HANDSHAKE_PORT": 65010,
+      "CREATION_TIME": 1606188389001
+    },
+    {
+      "NAME": "Peer3",
+      "IP_ADDRESS": "127.0.0.1",
+      "GROUP": "Group1",
+      "IS_SUPER_PEER": false,
+      "HANDSHAKE_PORT": 65020,
+      "CREATION_TIME": 1606188389001
+    },
+    {
+      "NAME": "Peer4",
+      "IP_ADDRESS": "127.0.0.1",
+      "GROUP": "Group1",
+      "IS_SUPER_PEER": false,
+      "HANDSHAKE_PORT": 65030,
+      "CREATION_TIME": 1606188389001
+    },
+    {
+      "NAME": "Peer5",
+      "IP_ADDRESS": "127.0.0.1",
+      "GROUP": "Group1",
+      "IS_SUPER_PEER": false,
+      "HANDSHAKE_PORT": 65040,
+      "CREATION_TIME": 1606188389001
+    }
+  ]
+}

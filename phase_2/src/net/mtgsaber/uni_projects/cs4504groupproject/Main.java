@@ -2,6 +2,7 @@ package net.mtgsaber.uni_projects.cs4504groupproject;
 
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.EventManager;
+import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
 import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.P2PClient;
 
 import java.io.File;
@@ -29,11 +30,15 @@ public class Main {
     }
 
     private static void createPeer(Map<String, P2PClient> p2pClientSpace, EventManager eventManager, String configFileLoc) {
-        Config config = new Config(new File(configFileLoc));
-        P2PClient client = new P2PClient(config, eventManager);
-        client.start();
-        p2pClientSpace.put(client.getName(), client);
-        for (String eventName : client.getCentralEventNames())
-            eventManager.addHandler(eventName, client);
+        try {
+            Config config = new Config(new File(configFileLoc)); // this is the line that produces the exceptions being caught.
+            P2PClient client = new P2PClient(config, eventManager);
+            client.start();
+            p2pClientSpace.put(client.getName(), client);
+            for (String eventName : client.getCentralEventNames())
+                eventManager.addHandler(eventName, client);
+        } catch (Exception ex) {
+            // TODO: change to catch specific exceptions and do something with them.
+        }
     }
 }

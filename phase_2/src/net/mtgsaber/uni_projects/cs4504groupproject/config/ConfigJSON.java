@@ -49,7 +49,7 @@ public class ConfigJSON {
         this.GROUP_PEERS = groupPeers;
     }
 
-    static class ResourceRegistry {
+    public static class ResourceRegistry {
         @SerializedName("ResourceNames")
         public final String[] RES_MAP_KEYS;
         @SerializedName("ResourceFilePaths")

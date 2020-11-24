@@ -4,6 +4,10 @@ import net.mtgsaber.lib.algorithms.Pair;
 
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
@@ -11,11 +15,20 @@ import java.util.logging.Level;
 public final class Logging {
     private static volatile boolean started;
     private static PrintStream defaultPS;
+    private static volatile boolean doTimestamps;
     private static final Map<Level, Pair<Container<Boolean>, PrintStream>> LEVEL_TO_PS_MAP = new HashMap<>();
+    public static final DateTimeFormatter format = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+    public static final ZoneId zoneId = ZoneId.systemDefault();
 
-    public static boolean start(OutputStream defaultOS) {
+    public static boolean start(OutputStream defaultOS, boolean doTimestamps) {
         if (started) return false;
-        defaultPS = new PrintStream(defaultOS);
+        return start(new PrintStream(defaultOS), doTimestamps);
+    }
+
+    public static boolean start(PrintStream ps, boolean doTimestamps) {
+        if (started) return false;
+        Logging.doTimestamps = doTimestamps;
+        defaultPS = ps;
         started = true;
         return true;
     }
@@ -44,7 +57,10 @@ public final class Logging {
         ps = pair.VAL == null? defaultPS : pair.VAL;
         synchronized (pair.KEY) {
             if (pair.KEY.get())
-                ps.println("[" + Thread.currentThread().getName() + "] [" + level.getLocalizedName() + "]: " + message);
+                if (doTimestamps)
+                    ps.println("["+getTimeStamp()+"]["+Thread.currentThread().getName()+"]["+level.getLocalizedName()+"]: " + message);
+                else
+                    ps.println("["+Thread.currentThread().getName()+"]["+level.getLocalizedName()+"]: " + message);
         }
     }
 
@@ -78,6 +94,10 @@ public final class Logging {
             started = false;
         }
         return true;
+    }
+
+    private static String getTimeStamp() {
+        return ZonedDateTime.ofInstant(Instant.now(), zoneId).format(format);
     }
 
     /*
