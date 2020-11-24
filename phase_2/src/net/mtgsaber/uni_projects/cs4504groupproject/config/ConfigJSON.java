@@ -60,3 +60,4 @@ public class ConfigJSON {
             this.RES_MAP_VALS = resMapVals;
         }
     }
+}
