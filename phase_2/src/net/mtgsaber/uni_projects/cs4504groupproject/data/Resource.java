@@ -23,11 +23,11 @@ public final class Resource {
     /**
      * returns a fresh input stream of this resource's file as soon as the resource is not in use.
      * @return a new FileInputStream on this resource's file; null if a FileNotFoundException is caught.
-     * @param config the configuration for the client owning this resource. this is used to control waiting time.
      * @throws InterruptedException if the wait loop is interrupted for any reason.
      * @throws TimeoutException if the
      */
-    public synchronized FileInputStream getFileStream(Config config) throws InterruptedException, TimeoutException {
+    public synchronized FileInputStream getFileStream() throws InterruptedException, TimeoutException {
+        /*
         long startTime = System.currentTimeMillis();
 
         if (!registered) return null;
@@ -47,6 +47,8 @@ public final class Resource {
         } catch (FileNotFoundException fnfex) {
             return null;
         }
+        */
+        return null;
     }
 
     /**

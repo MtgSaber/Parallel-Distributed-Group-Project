@@ -5,15 +5,20 @@ import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
 import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
+import net.mtgsaber.uni_projects.cs4504groupproject.data.Resource;
 import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.*;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
+import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 public class P2PClient implements Consumer<Event> {
     private final Config CONFIG;
@@ -92,6 +97,7 @@ public class P2PClient implements Consumer<Event> {
         Thread socketThread = new Thread(() -> {
             action.useSocket(socket);
             synchronized (SOCKETS) {
+                // TODO: close the socket.
                 SOCKETS.remove(localPort);
             }
             PORT_QUEUE.add(localPort);
@@ -129,6 +135,24 @@ public class P2PClient implements Consumer<Event> {
 
     private void actionUploadFile(Socket socket) {
         // TODO: upload file to remote client
+        Logging.log(Level.INFO, "Attempting file upload.");
+
+        Resource r = CONFIG.getResource("file1.ext"); // get resource from config file
+
+        // attempt to open file stream
+        try (FileInputStream fis = r.getFileStream()) {
+            byte[] b = new byte[8]; // buffer
+            fis.read(b, 0, 8);
+
+        } catch (Exception e) {
+            Logging.log(Level.SEVERE, "Could not open file input stream: " + e.toString());
+        }
+
+        try (OutputStream sock = socket.getOutputStream()) {
+
+        } catch (IOException e) {
+            Logging.log(Level.SEVERE, "Could not open socket output stream: " + e.toString());
+        }
     }
 
     private void actionProcessRoutingRequest(Socket socket) {
