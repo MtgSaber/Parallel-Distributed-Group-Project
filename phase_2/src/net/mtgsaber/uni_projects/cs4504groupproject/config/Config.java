@@ -152,6 +152,10 @@ public class Config {
         }
     }
 
+    public Resource getResource(String name) {
+        return null; //TODO: remoove
+    }
+
     /**
      * Saves the current config state to the config file.
      */

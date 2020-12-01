@@ -4,13 +4,9 @@ import net.mtgsaber.lib.algorithms.Pair;
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
-import net.mtgsaber.uni_projects.cs4504groupproject.Config;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.DownloadCommandEvent;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.ResourceRegistrationEvent;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.ShutdownEvent;
+import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
+import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.*;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
-import net.mtgsaber.uni_projects.cs4504groupproject.packets.P2PTransferRequest;
-import net.mtgsaber.uni_projects.cs4504groupproject.packets.routinglookup.RoutingLookupRequest;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -44,8 +40,8 @@ public class P2PClient implements Consumer<Event> {
         CLIENT_EVENT_MANAGER.setThreadInstance(CLIENT_EVENT_MANAGER_THREAD);
 
         // event names
-        this.ROUTING_REQUEST_EVENT_NAME = CONFIG.SELF.NAME + "_RoutingRequestReceived";
-        this.TRANSFER_REQUEST_EVENT_NAME = CONFIG.SELF.NAME + "_TransferRequestReceived";
+        this.ROUTING_REQUEST_EVENT_NAME = CONFIG.SELF.NAME + RoutingRequestReceivedEvent.SUFFIX;
+        this.TRANSFER_REQUEST_EVENT_NAME = CONFIG.SELF.NAME + FileTransferRequestReceivedEvent.SUFFIX;
         this.DOWNLOAD_COMMAND_EVENT_NAME = CONFIG.SELF.NAME + DownloadCommandEvent.SUFFIX;
         this.SHUTDOWN_COMMAND_EVENT_NAME = CONFIG.SELF.NAME + ShutdownEvent.SUFFIX;
         this.RESOURCE_REGISTRATION_EVENT_NAME = CONFIG.SELF.NAME + ResourceRegistrationEvent.SUFFIX;
@@ -69,6 +65,8 @@ public class P2PClient implements Consumer<Event> {
     private void hookEventHandlers() {
         CLIENT_EVENT_MANAGER.addHandler(ROUTING_REQUEST_EVENT_NAME, event -> {
             // TODO: use the event and create the socket. try not to slow down the event manager too much.
+//            openSocket();
+
         });
         CLIENT_EVENT_MANAGER.addHandler(TRANSFER_REQUEST_EVENT_NAME, event -> {
             // TODO: use the event and create the socket. try not to slow down the event manager too much.
@@ -171,6 +169,7 @@ public class P2PClient implements Consumer<Event> {
             try {
                 openSocket(targetPeer.IP_ADDRESS, targetPeer.HANDSHAKE_PORT, socket -> {
                     // TODO: use socket and the information from e to perform the download.
+
                 });
             } catch (IOException ioex) {
                 // TODO: handle the exception
@@ -190,31 +189,6 @@ public class P2PClient implements Consumer<Event> {
             // TODO: push an event to the central event manager to let main() know that it failed
         } catch (TimeoutException toex) {
             // TODO: push an event to the central event manager to let main() know that it failed
-        }
-    }
-
-    public final class RoutingRequestReceivedEvent implements Event {
-        public final RoutingLookupRequest PACKET;
-
-        public RoutingRequestReceivedEvent(RoutingLookupRequest packet) {
-            this.PACKET = packet;
-        }
-
-        @Override
-        public String getName() {
-            return ROUTING_REQUEST_EVENT_NAME;
-        }
-    }
-    public final class FileTransferRequestReceivedEvent implements Event {
-        public final P2PTransferRequest PACKET;
-
-        public FileTransferRequestReceivedEvent(P2PTransferRequest packet) {
-            this.PACKET = packet;
-        }
-
-        @Override
-        public String getName() {
-            return TRANSFER_REQUEST_EVENT_NAME;
         }
     }
 }
