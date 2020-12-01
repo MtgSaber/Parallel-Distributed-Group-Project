@@ -7,6 +7,7 @@ import net.mtgsaber.lib.events.EventManager;
 import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
 import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.P2PClient;
 import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.DownloadCommandEvent;
+import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.ShutdownEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 
 // Java libraries
@@ -177,20 +178,51 @@ public class Main {
 
 
 
-
-        Logging.shutdown(); // record that we've shut down
+        // software shutdown
+        shutdown(p2pClientSpace, eventManager, scan);
     }
 
-    private static void createPeer(Map<String, P2PClient> p2pClientSpace, EventManager eventManager, String configFileLoc) {
+    private static void createPeer(Map<String, P2PClient> peerSpace, EventManager eventManager, String configFileLoc) {
         try {
             Config config = new Config(new File(configFileLoc)); // this is the line that produces the exceptions being caught.
             P2PClient client = new P2PClient(config, eventManager);
             client.start();
-            p2pClientSpace.put(client.getName(), client);
+            peerSpace.put(client.getName(), client);
             for (String eventName : client.getCentralEventNames())
                 eventManager.addHandler(eventName, client);
         } catch (Exception ex) {
             // TODO: change to catch specific exceptions and do something with them.
         }
+    }
+
+    /**
+     * Closes all resources and threads.
+     */
+    private static void shutdown(Map<String, P2PClient> peerSpace, AsynchronousEventManager eventManager, Scanner inputScanner) {
+        inputScanner.close();
+        for (String clientNameKey : peerSpace.keySet()) {
+            Logging.log(Level.INFO, "Issuing shutdown command to peer \"" + clientNameKey + "\"...");
+            eventManager.push(new ShutdownEvent(clientNameKey));
+        }
+        eventManager.shutdown();
+        //TODO: really should find a way to call .join() on all existing threads, but it should be okay for now.
+        Logging.shutdown(); // record that we've shut down
+    }
+
+    /**
+     * Creates a scanner either on System.in or the file provided in args[0]. If the path provided does not exist, this returns null.
+     * @param args
+     * @return a new Scanner object if no args or a valid path as first arg, or null if an invalid path as first arg.
+     */
+    private static Scanner getInputScanner(String[] args) {
+        if (args.length == 0 || args[0].equals(""))
+            return new Scanner(System.in);
+        try {
+            File inputScript = new File(args[0]);
+            return new Scanner(inputScript);
+        } catch (FileNotFoundException fnfex) {
+            Logging.log(Level.SEVERE, "InputScript: no such file \"" + args[0] + "\". Shutting down.");
+        }
+        return null;
     }
 }
