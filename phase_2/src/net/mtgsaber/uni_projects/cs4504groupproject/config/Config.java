@@ -3,7 +3,6 @@ package net.mtgsaber.uni_projects.cs4504groupproject.config;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
-import net.mtgsaber.uni_projects.cs4504groupproject.data.Resource;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 
 import java.io.File;
@@ -17,11 +16,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
 public class Config {
-    private final Map<String, Resource> RES_TABLE = new HashMap<>();
+    private final Map<String, File> RES_TABLE = new HashMap<>();
     private final Set<File> REGISTERED_FILES = new HashSet<>();
     private final Map<String, Peer> PEERS = new HashMap<>();
     private final File CONFIG_FILE;
-    public final long RES_MAX_USAGE_TIME;
     public final long PEER_CACHE_TIME_LIMIT;
     public final Peer LOCAL_SUPER_PEER;
     public final Peer SELF;
@@ -39,15 +37,13 @@ public class Config {
         CONFIG_FILE = configFile;
         ConfigJSON json = GSON.fromJson(new FileReader(configFile), ConfigJSON.class);
         boolean resMismatch = json.RESOURCE_REGISTRY.RES_MAP_KEYS.length != json.RESOURCE_REGISTRY.RES_MAP_VALS.length;
-        boolean resTimeRange = json.RES_MAX_USAGE_TIME < 1;
         boolean cacheTimeRange = json.PEER_CACHE_TIME_LIMIT < 0;
         boolean startPortRange = json.STARTING_PORT < 1025;
         boolean portRange = json.PORT_RANGE < 0;
-        if (resMismatch || resTimeRange || cacheTimeRange || startPortRange || portRange)
+        if (resMismatch || cacheTimeRange || startPortRange || portRange)
             throw new FormatException(
                     "The following format errors were found in config file \"" + configFile.toString() + "\":"
                     + (resMismatch? "\n\tResourceRegistry: ResourceNames and ResourceFilePaths must have equal length!" : "")
-                    + (resTimeRange? "\n\tResourceMaxUsageTime: Must be greater than 0" : "")
                     + (cacheTimeRange? "\n\tRoutingCacheEntryLifespan: Must be greater than -1" : "")
                     + (startPortRange? "\n\tNonHandshakePortRangeStart: Must be greater than 1024" : "")
                     + (portRange? "\n\tNonHandshakePortRangeSize: Must be greater than -1" : "")
@@ -69,7 +65,6 @@ public class Config {
         // primitive parameters
         this.SELF = json.SELF;
         this.LOCAL_SUPER_PEER = json.LOCAL_SUPER_PEER;
-        this.RES_MAX_USAGE_TIME = json.RES_MAX_USAGE_TIME;
         this.PEER_CACHE_TIME_LIMIT = json.PEER_CACHE_TIME_LIMIT;
         this.STARTING_PORT = json.STARTING_PORT;
         this.PORT_RANGE = json.PORT_RANGE;
@@ -88,10 +83,10 @@ public class Config {
             if (REGISTERED_FILES.contains(file))
                 return false;
         }
-        Resource oldResource;
+        File oldResource;
         synchronized (RES_TABLE) {
             if (!RES_TABLE.containsKey(name)) {
-                RES_TABLE.put(name, new Resource(file));
+                RES_TABLE.put(name, file);
                 synchronized (REGISTERED_FILES) {
                     REGISTERED_FILES.add(file);
                 }
@@ -100,19 +95,12 @@ public class Config {
             oldResource = RES_TABLE.get(name);
         }
 
-        while (true) { // this is a messy approach. if issues arise from this, there are better ways to implement it.
-            try {
-                oldResource.getFileStream(this);
-                oldResource.unRegister();
-                break;
-            } catch (InterruptedException e){}
-        }
         synchronized (REGISTERED_FILES) {
-            REGISTERED_FILES.remove(oldResource.getFile());
+            REGISTERED_FILES.remove(oldResource);
         }
 
         synchronized (RES_TABLE) {
-            RES_TABLE.put(name, new Resource(file));
+            RES_TABLE.put(name, file);
         }
         return true;
     }
@@ -152,8 +140,8 @@ public class Config {
         }
     }
 
-    public Resource getResource(String name) {
-        return null; //TODO: remoove
+    public File getResource(String name) {
+        return RES_TABLE.get(name);
     }
 
     /**

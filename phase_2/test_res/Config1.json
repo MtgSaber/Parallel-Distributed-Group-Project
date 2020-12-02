@@ -5,7 +5,7 @@
     "GROUP": "Group1",
     "IS_SUPER_PEER": true,
     "HANDSHAKE_PORT": 65000,
-    "CREATION_TIME": 1606188389001
+    "CREATION_TIME": 1606947251547
   },
   "GroupSuperpeerInfo": {
     "NAME": "Peer1",
@@ -13,11 +13,10 @@
     "GROUP": "Group1",
     "IS_SUPER_PEER": true,
     "HANDSHAKE_PORT": 65000,
-    "CREATION_TIME": 1606188389001
+    "CREATION_TIME": 1606947251547
   },
   "NonHandshakePortRangeStart": 65001,
   "NonHandshakePortRangeSize": 8,
-  "ResourceMaxUsageTime": 600000,
   "RoutingCacheEntryLifespan": 600000,
   "ResourceRegistry": {
     "ResourceNames": [
@@ -39,7 +38,7 @@
       "GROUP": "Group1",
       "IS_SUPER_PEER": false,
       "HANDSHAKE_PORT": 65010,
-      "CREATION_TIME": 1606188389001
+      "CREATION_TIME": 1606947251547
     },
     {
       "NAME": "Peer3",
@@ -47,7 +46,7 @@
       "GROUP": "Group1",
       "IS_SUPER_PEER": false,
       "HANDSHAKE_PORT": 65020,
-      "CREATION_TIME": 1606188389001
+      "CREATION_TIME": 1606947251547
     },
     {
       "NAME": "Peer4",
@@ -55,7 +54,7 @@
       "GROUP": "Group1",
       "IS_SUPER_PEER": false,
       "HANDSHAKE_PORT": 65030,
-      "CREATION_TIME": 1606188389001
+      "CREATION_TIME": 1606947251547
     },
     {
       "NAME": "Peer5",
@@ -63,7 +62,7 @@
       "GROUP": "Group1",
       "IS_SUPER_PEER": false,
       "HANDSHAKE_PORT": 65040,
-      "CREATION_TIME": 1606188389001
+      "CREATION_TIME": 1606947251547
     }
   ]
 }

@@ -73,7 +73,7 @@ public class Main {
         System.out.println("(1) Download file" +
                 "(2) Send file" +
                 "(3) Create peer" +
-                "(4) Review logs" +); //can come back to this one
+                "(4) Review logs" +""); //can come back to this one
 
         int user_command = scan.nextInt();
         //switch statement to take argument for menu of commands
@@ -145,8 +145,8 @@ public class Main {
                         break;
                     case 0:
                         System.out.println("send \"" + target_resource + "\" from \"" +remote_client+"\" of \" "+ remote_group +"\" to \"user2\" as \"/path/to/file\"");
-                        Event e = new SendCommandEvent(local_client, new File(path_name), remote_client, remote_group, target_resource);
-                        eventManager.push(e);
+                        //Event e = new SendCommandEvent(local_client, new File(path_name), remote_client, remote_group, target_resource);
+                        //eventManager.push(e);
                         break;
                 }
                 break;

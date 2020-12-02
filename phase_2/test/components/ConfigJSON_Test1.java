@@ -19,7 +19,7 @@ public class ConfigJSON_Test1 {
                 peers[0],
                 peers[0],
                 65001, 8,
-                600000, 600000,
+                600000,
                 new ConfigJSON.ResourceRegistry(
                         new String[]{"Res1", "Res2", "Res3"},
                         new String[]{

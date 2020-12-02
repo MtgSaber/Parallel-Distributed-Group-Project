@@ -16,14 +16,11 @@ public class ConfigJSON {
     @SerializedName("NonHandshakePortRangeSize")
     public final int PORT_RANGE;
 
-    @SerializedName("ResourceMaxUsageTime")
-    public final int RES_MAX_USAGE_TIME;
-
     @SerializedName("RoutingCacheEntryLifespan")
     public final long PEER_CACHE_TIME_LIMIT;
 
     @SerializedName("ResourceRegistry")
-    public final ResourceRegistry RESOURCE_REGISTRY;
+    public final ResourceRegistry RESOURCE_REGISTRY; // list of resources this node's
 
     @SerializedName("SuperpeerRoutingTable")
     public final Peer[] SUPER_PEERS;
@@ -34,7 +31,7 @@ public class ConfigJSON {
     public ConfigJSON(
             Peer self, Peer localSuperPeer,
             int startingPort, int portRange,
-            int resMaxUsageTime, long peerCacheTimeLimit,
+            long peerCacheTimeLimit,
             ResourceRegistry resourceRegistry,
             Peer[] superPeers, Peer[] groupPeers
     ) {
@@ -42,7 +39,6 @@ public class ConfigJSON {
         this.LOCAL_SUPER_PEER = localSuperPeer;
         this.STARTING_PORT = startingPort;
         this.PORT_RANGE = portRange;
-        this.RES_MAX_USAGE_TIME = resMaxUsageTime;
         this.PEER_CACHE_TIME_LIMIT = peerCacheTimeLimit;
         this.RESOURCE_REGISTRY = resourceRegistry;
         this.SUPER_PEERS = superPeers;
