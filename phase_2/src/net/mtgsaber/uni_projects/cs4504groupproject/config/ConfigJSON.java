@@ -1,7 +1,7 @@
 package net.mtgsaber.uni_projects.cs4504groupproject.config;
 
 import com.google.gson.annotations.SerializedName;
-import net.mtgsaber.uni_projects.cs4504groupproject.data.PeerRoutingData;
+import net.mtgsaber.uni_projects.cs4504groupproject.PeerRoutingData;
 
 public class ConfigJSON {
     @SerializedName("SelfParams")

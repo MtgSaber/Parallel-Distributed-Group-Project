@@ -1,6 +1,6 @@
-package net.mtgsaber.uni_projects.cs4504groupproject.p2pclient;
+package net.mtgsaber.uni_projects.cs4504groupproject;
 
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.IncomingConnectionEvent;
+import net.mtgsaber.uni_projects.cs4504groupproject.events.IncomingConnectionEvent;
 
 import java.net.Socket;
 

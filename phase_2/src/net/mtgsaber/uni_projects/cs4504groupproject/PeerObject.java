@@ -1,13 +1,13 @@
-package net.mtgsaber.uni_projects.cs4504groupproject.p2pclient;
+package net.mtgsaber.uni_projects.cs4504groupproject;
 
 import net.mtgsaber.lib.algorithms.Pair;
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
 import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
-import net.mtgsaber.uni_projects.cs4504groupproject.data.PeerRoutingData;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.*;
+import net.mtgsaber.uni_projects.cs4504groupproject.events.*;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
+import net.mtgsaber.uni_projects.cs4504groupproject.util.SocketAction;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

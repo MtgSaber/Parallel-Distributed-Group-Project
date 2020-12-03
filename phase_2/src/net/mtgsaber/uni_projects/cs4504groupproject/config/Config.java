@@ -2,7 +2,7 @@ package net.mtgsaber.uni_projects.cs4504groupproject.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.mtgsaber.uni_projects.cs4504groupproject.data.PeerRoutingData;
+import net.mtgsaber.uni_projects.cs4504groupproject.PeerRoutingData;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 
 import java.io.File;

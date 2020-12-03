@@ -1,4 +1,4 @@
-package net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events;
+package net.mtgsaber.uni_projects.cs4504groupproject.events;
 
 import net.mtgsaber.lib.events.Event;
 

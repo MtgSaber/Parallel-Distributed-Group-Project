@@ -1,4 +1,4 @@
-package net.mtgsaber.uni_projects.cs4504groupproject.data;
+package net.mtgsaber.uni_projects.cs4504groupproject;
 
 /**
  * This is a basic object to represent cached(non-superpeer) or managed(superpeer) information about a p2p client

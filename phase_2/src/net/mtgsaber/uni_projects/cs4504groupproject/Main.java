@@ -5,9 +5,8 @@ import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
 import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.PeerObject;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.DownloadCommandEvent;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.ShutdownEvent;
+import net.mtgsaber.uni_projects.cs4504groupproject.events.DownloadCommandEvent;
+import net.mtgsaber.uni_projects.cs4504groupproject.events.ShutdownEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 
 // Java libraries

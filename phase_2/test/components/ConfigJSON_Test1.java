@@ -3,7 +3,7 @@ package components;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.mtgsaber.uni_projects.cs4504groupproject.config.ConfigJSON;
-import net.mtgsaber.uni_projects.cs4504groupproject.data.PeerRoutingData;
+import net.mtgsaber.uni_projects.cs4504groupproject.PeerRoutingData;
 
 public class ConfigJSON_Test1 {
     public static void main(String[] args) {

@@ -1,4 +1,4 @@
-package net.mtgsaber.uni_projects.cs4504groupproject.p2pclient;
+package net.mtgsaber.uni_projects.cs4504groupproject.util;
 
 import java.net.Socket;
 

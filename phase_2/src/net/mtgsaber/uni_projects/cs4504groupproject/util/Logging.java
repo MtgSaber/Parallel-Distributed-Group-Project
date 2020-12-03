@@ -12,6 +12,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 
+/**
+ * @author Andrew Arnold
+ * This will eventually be moved into its own library, as this has been abstracted enough to use in some of my other projects.
+ */
 public final class Logging {
     private static volatile boolean started;
     private static PrintStream defaultPS;

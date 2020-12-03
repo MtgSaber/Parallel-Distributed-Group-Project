@@ -1,7 +1,7 @@
-package net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events;
+package net.mtgsaber.uni_projects.cs4504groupproject.events;
 
 import net.mtgsaber.lib.events.Event;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.PeerObject;
+import net.mtgsaber.uni_projects.cs4504groupproject.PeerObject;
 
 public class IncomingConnectionEvent implements Event {
     public static final String SUFFIX = "_IncomingConnection";
