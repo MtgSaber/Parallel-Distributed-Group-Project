@@ -5,7 +5,7 @@ import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
 import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
-import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.P2PClient;
+import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.PeerObject;
 import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.DownloadCommandEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.p2pclient.events.ShutdownEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
@@ -32,7 +32,7 @@ public class Main {
         String path_name = "default";
 
         // create map between P2PClient objects and their hosts
-        final Map<String, P2PClient> p2pClientSpace = new HashMap<>();
+        final Map<String, PeerObject> p2pClientSpace = new HashMap<>();
 
         // set up event and thread managers
         final AsynchronousEventManager eventManager = new AsynchronousEventManager();
@@ -69,6 +69,8 @@ public class Main {
 
         */
         //display menu of commands
+        Logging.log(Level.INFO, "Hello World");
+
         System.out.println("Commands Menu \n-----------\n");
         System.out.println("(1) Download file" +
                 "(2) Send file" +
@@ -88,7 +90,7 @@ public class Main {
                         "(0) Push Download\n");
 
                 int download_Option = scan.nextInt();
-                switch(download_Option) {
+                switch(download_Option) {//make input mandatory : default casing
                     case 1:
                         remote_client = scan.nextLine();
                         break;
@@ -112,12 +114,11 @@ public class Main {
                         eventManager.push(e);
                         break;
 
-
                     default:
                         System.out.println("Error: Incorrect input try again.");
                 }
                 break;
-            case 2:
+            case 2: // can be taken out
                 System.out.println("Menu Options \n------------\n");
                 System.out.println("(1) Add Local Client \n" +
                         "(2) Add Local Client \n"+
@@ -182,10 +183,10 @@ public class Main {
         shutdown(p2pClientSpace, eventManager, scan);
     }
 
-    private static void createPeer(Map<String, P2PClient> peerSpace, EventManager eventManager, String configFileLoc) {
+    private static void createPeer(Map<String, PeerObject> peerSpace, EventManager eventManager, String configFileLoc) {
         try {
             Config config = new Config(new File(configFileLoc)); // this is the line that produces the exceptions being caught.
-            P2PClient client = new P2PClient(config, eventManager);
+            PeerObject client = new PeerObject(config, eventManager);
             client.start();
             peerSpace.put(client.getName(), client);
             for (String eventName : client.getCentralEventNames())
@@ -198,7 +199,7 @@ public class Main {
     /**
      * Closes all resources and threads.
      */
-    private static void shutdown(Map<String, P2PClient> peerSpace, AsynchronousEventManager eventManager, Scanner inputScanner) {
+    private static void shutdown(Map<String, PeerObject> peerSpace, AsynchronousEventManager eventManager, Scanner inputScanner) {
         inputScanner.close();
         for (String clientNameKey : peerSpace.keySet()) {
             Logging.log(Level.INFO, "Issuing shutdown command to peer \"" + clientNameKey + "\"...");

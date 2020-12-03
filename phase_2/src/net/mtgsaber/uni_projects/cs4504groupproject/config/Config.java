@@ -2,7 +2,7 @@ package net.mtgsaber.uni_projects.cs4504groupproject.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
+import net.mtgsaber.uni_projects.cs4504groupproject.data.PeerRoutingData;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 
 import java.io.File;
@@ -18,11 +18,11 @@ import java.util.logging.Level;
 public class Config {
     private final Map<String, File> RES_TABLE = new HashMap<>();
     private final Set<File> REGISTERED_FILES = new HashSet<>();
-    private final Map<String, Peer> PEERS = new HashMap<>();
+    private final Map<String, PeerRoutingData> PEERS = new HashMap<>();
     private final File CONFIG_FILE;
     public final long PEER_CACHE_TIME_LIMIT;
-    public final Peer LOCAL_SUPER_PEER;
-    public final Peer SELF;
+    public final PeerRoutingData LOCAL_SUPER_PEER;
+    public final PeerRoutingData SELF;
     public final int STARTING_PORT;
     public final int PORT_RANGE;
 
@@ -59,8 +59,8 @@ public class Config {
         }
 
         // peer table
-        for (Peer peer : json.GROUP_PEERS) addPeer(peer);
-        for (Peer peer : json.SUPER_PEERS) addPeer(peer);
+        for (PeerRoutingData peerRoutingData : json.GROUP_PEERS) addPeer(peerRoutingData);
+        for (PeerRoutingData peerRoutingData : json.SUPER_PEERS) addPeer(peerRoutingData);
 
         // primitive parameters
         this.SELF = json.SELF;
@@ -107,15 +107,15 @@ public class Config {
 
     /**
      * Adds this peer to the peer table.
-     * @param peer
+     * @param peerRoutingData
      * @return
      */
-    public boolean addPeer(Peer peer) {
-        if (peer.getAge() > PEER_CACHE_TIME_LIMIT)
+    public boolean addPeer(PeerRoutingData peerRoutingData) {
+        if (peerRoutingData.getAge() > PEER_CACHE_TIME_LIMIT)
             return false;
 
         synchronized (PEERS) {
-            PEERS.put(peer.NAME, peer);
+            PEERS.put(peerRoutingData.NAME, peerRoutingData);
         }
         return true;
     }
@@ -125,18 +125,18 @@ public class Config {
      * @param name
      * @return
      */
-    public Peer getPeer(String name) {
+    public PeerRoutingData getPeer(String name) {
         synchronized (PEERS) {
-            Peer peer = PEERS.get(name);
+            PeerRoutingData peerRoutingData = PEERS.get(name);
 
-            if (peer == null) return null;
+            if (peerRoutingData == null) return null;
 
-            if (peer.getAge() >= PEER_CACHE_TIME_LIMIT && (!SELF.IS_SUPER_PEER || !SELF.GROUP.equals(peer.GROUP))) {
+            if (peerRoutingData.getAge() >= PEER_CACHE_TIME_LIMIT && (!SELF.IS_SUPER_PEER || !SELF.GROUP.equals(peerRoutingData.GROUP))) {
                 PEERS.remove(name);
                 return null;
             }
 
-            return peer;
+            return peerRoutingData;
         }
     }
 

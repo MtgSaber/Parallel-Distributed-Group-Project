@@ -1,14 +1,14 @@
 package net.mtgsaber.uni_projects.cs4504groupproject.config;
 
 import com.google.gson.annotations.SerializedName;
-import net.mtgsaber.uni_projects.cs4504groupproject.data.Peer;
+import net.mtgsaber.uni_projects.cs4504groupproject.data.PeerRoutingData;
 
 public class ConfigJSON {
     @SerializedName("SelfParams")
-    public final Peer SELF;
+    public final PeerRoutingData SELF;
 
     @SerializedName("GroupSuperpeerInfo")
-    public final Peer LOCAL_SUPER_PEER;
+    public final PeerRoutingData LOCAL_SUPER_PEER;
 
     @SerializedName("NonHandshakePortRangeStart")
     public final int STARTING_PORT;
@@ -20,20 +20,20 @@ public class ConfigJSON {
     public final long PEER_CACHE_TIME_LIMIT;
 
     @SerializedName("ResourceRegistry")
-    public final ResourceRegistry RESOURCE_REGISTRY; // list of resources this node's
+    public final ResourceRegistry RESOURCE_REGISTRY; // list of resources this node's holding
 
-    @SerializedName("SuperpeerRoutingTable")
-    public final Peer[] SUPER_PEERS;
+    @SerializedName("SuperpeerRoutingTable") // table of super peers
+    public final PeerRoutingData[] SUPER_PEERS;
 
-    @SerializedName("GroupRoutingTable")
-    public final Peer[] GROUP_PEERS;
+    @SerializedName("GroupRoutingTable") // table of peers in this peer's group
+    public final PeerRoutingData[] GROUP_PEERS;
 
     public ConfigJSON(
-            Peer self, Peer localSuperPeer,
+            PeerRoutingData self, PeerRoutingData localSuperPeer,
             int startingPort, int portRange,
             long peerCacheTimeLimit,
             ResourceRegistry resourceRegistry,
-            Peer[] superPeers, Peer[] groupPeers
+            PeerRoutingData[] superPeers, PeerRoutingData[] groupPeers
     ) {
         this.SELF = self;
         this.LOCAL_SUPER_PEER = localSuperPeer;

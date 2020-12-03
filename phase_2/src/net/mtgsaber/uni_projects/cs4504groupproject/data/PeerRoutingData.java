@@ -3,7 +3,7 @@ package net.mtgsaber.uni_projects.cs4504groupproject.data;
 /**
  * This is a basic object to represent cached(non-superpeer) or managed(superpeer) information about a p2p client
  */
-public class Peer {
+public class PeerRoutingData {
     public final String NAME;
     public final String IP_ADDRESS;
     public final String GROUP;
@@ -11,7 +11,7 @@ public class Peer {
     public final int HANDSHAKE_PORT;
     private long CREATION_TIME;
 
-    public Peer(String name, String ipAddress, String group, boolean isSuperPeer, int handshakePort) {
+    public PeerRoutingData(String name, String ipAddress, String group, boolean isSuperPeer, int handshakePort) {
         this.NAME = name;
         this.IP_ADDRESS = ipAddress;
         this.GROUP = group;
