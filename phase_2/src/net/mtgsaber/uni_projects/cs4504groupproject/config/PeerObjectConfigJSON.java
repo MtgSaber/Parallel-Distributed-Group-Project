@@ -3,7 +3,7 @@ package net.mtgsaber.uni_projects.cs4504groupproject.config;
 import com.google.gson.annotations.SerializedName;
 import net.mtgsaber.uni_projects.cs4504groupproject.PeerRoutingData;
 
-public final class ConfigJSON {
+public final class PeerObjectConfigJSON {
     @SerializedName("SelfParams")
     public final PeerRoutingData SELF;
 
@@ -28,7 +28,7 @@ public final class ConfigJSON {
     @SerializedName("GroupRoutingTable") // table of peers in this peer's group
     public final PeerRoutingData[] GROUP_PEERS;
 
-    public ConfigJSON(
+    public PeerObjectConfigJSON(
             PeerRoutingData self, PeerRoutingData localSuperPeer,
             int startingPort, int portRange,
             long peerCacheTimeLimit,

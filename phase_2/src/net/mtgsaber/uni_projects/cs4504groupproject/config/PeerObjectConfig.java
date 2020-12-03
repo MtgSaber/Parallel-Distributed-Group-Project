@@ -15,7 +15,7 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
-public final class Config {
+public final class PeerObjectConfig {
     private final Map<String, File> RES_TABLE = new HashMap<>();
     private final Set<File> REGISTERED_FILES = new HashSet<>();
     private final Map<String, PeerRoutingData> PEERS = new HashMap<>();
@@ -33,10 +33,10 @@ public final class Config {
      * Parses the provided file into the configuration fields of this object.
      * @param configFile the configuration file to parse.
      */
-    public Config(File configFile) throws FileNotFoundException, FormatException {
+    public PeerObjectConfig(File configFile) throws FileNotFoundException, FormatException {
         // when loading the config, add each resource entry via the addResource(name, file) method to verify their uniqueness.
         CONFIG_FILE = configFile;
-        ConfigJSON json = GSON.fromJson(new FileReader(configFile), ConfigJSON.class);
+        PeerObjectConfigJSON json = GSON.fromJson(new FileReader(configFile), PeerObjectConfigJSON.class);
         boolean resMismatch = json.RESOURCE_REGISTRY.RES_MAP_KEYS.length != json.RESOURCE_REGISTRY.RES_MAP_VALS.length;
         boolean cacheTimeRange = json.PEER_CACHE_TIME_LIMIT < 0;
         boolean startPortRange = json.STARTING_PORT < 1025;

@@ -4,10 +4,11 @@ package net.mtgsaber.uni_projects.cs4504groupproject;
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
-import net.mtgsaber.uni_projects.cs4504groupproject.config.Config;
+import net.mtgsaber.uni_projects.cs4504groupproject.config.PeerObjectConfig;
 import net.mtgsaber.uni_projects.cs4504groupproject.events.DownloadCommandEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.events.ShutdownEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
+import net.mtgsaber.uni_projects.cs4504groupproject.util.Utils;
 
 // Java libraries
 import java.io.File;
@@ -179,12 +180,12 @@ public class Main {
 
 
         // software shutdown
-        shutdown(p2pClientSpace, eventManager, scan);
+        shutdown(p2pClientSpace, eventManager, eventManagerThread, scan);
     }
 
     private static void createPeer(Map<String, PeerObject> peerSpace, EventManager eventManager, String configFileLoc) {
         try {
-            Config config = new Config(new File(configFileLoc)); // this is the line that produces the exceptions being caught.
+            PeerObjectConfig config = new PeerObjectConfig(new File(configFileLoc)); // this is the line that produces the exceptions being caught.
             PeerObject client = new PeerObject(config, eventManager);
             client.start();
             peerSpace.put(client.getName(), client);
@@ -198,13 +199,15 @@ public class Main {
     /**
      * Closes all resources and threads.
      */
-    private static void shutdown(Map<String, PeerObject> peerSpace, AsynchronousEventManager eventManager, Scanner inputScanner) {
+    private static void shutdown(Map<String, PeerObject> peerSpace, AsynchronousEventManager eventManager, Thread eventManagerThread, Scanner inputScanner) {
         inputScanner.close();
         for (String clientNameKey : peerSpace.keySet()) {
             Logging.log(Level.INFO, "Issuing shutdown command to peer \"" + clientNameKey + "\"...");
             eventManager.push(new ShutdownEvent(clientNameKey));
         }
         eventManager.shutdown();
+        Utils.joinThreadForShutdown(eventManagerThread);
+
         //TODO: really should find a way to call .join() on all existing threads, but it should be okay for now.
         Logging.shutdown(); // record that we've shut down
     }
