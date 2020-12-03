@@ -15,7 +15,7 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
-public class Config {
+public final class Config {
     private final Map<String, File> RES_TABLE = new HashMap<>();
     private final Set<File> REGISTERED_FILES = new HashSet<>();
     private final Map<String, PeerRoutingData> PEERS = new HashMap<>();
@@ -25,6 +25,7 @@ public class Config {
     public final PeerRoutingData SELF;
     public final int STARTING_PORT;
     public final int PORT_RANGE;
+    // TODO: add a map for fellow superpeers.
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -61,6 +62,7 @@ public class Config {
         // peer table
         for (PeerRoutingData peerRoutingData : json.GROUP_PEERS) addPeer(peerRoutingData);
         for (PeerRoutingData peerRoutingData : json.SUPER_PEERS) addPeer(peerRoutingData);
+        // TODO: register superpeers to separate map. see TODO comment in fields region above.
 
         // primitive parameters
         this.SELF = json.SELF;
@@ -76,7 +78,7 @@ public class Config {
      * adds this resource under the given label.
      * @param name the label to register the resource under.
      * @param file the file to register. must not already be registered.
-     * @return
+     * @return whether it was successfully registered.
      */
     public boolean addResource(String name, File file) throws FileNotFoundException, TimeoutException {
         synchronized (REGISTERED_FILES) {
@@ -107,8 +109,8 @@ public class Config {
 
     /**
      * Adds this peer to the peer table.
-     * @param peerRoutingData
-     * @return
+     * @param peerRoutingData the routing data of the peer.
+     * @return whether it was successfully added.
      */
     public boolean addPeer(PeerRoutingData peerRoutingData) {
         if (peerRoutingData.getAge() > PEER_CACHE_TIME_LIMIT)
@@ -122,8 +124,8 @@ public class Config {
 
     /**
      * gets the recorded peer for the given label. if the peer has been cached for too long, it will be purged.
-     * @param name
-     * @return
+     * @param name the name of the requested peer.
+     * @return the routing data for the given peer if it is cached (and non-expired) or registered in the routing table, null otherwise.
      */
     public PeerRoutingData getPeer(String name) {
         synchronized (PEERS) {
@@ -138,6 +140,18 @@ public class Config {
 
             return peerRoutingData;
         }
+    }
+
+    /**
+     * Returns the routing data for the superpeer of the provided group.
+     * this should only be used by superpeers.
+     * @param groupName the group of the remote superpeer
+     * @return the routing data of the superpeer of the given group if it is registered in this config, null otherwise.
+     */
+    public PeerRoutingData getSuperPeer(String groupName) {
+        if (!SELF.IS_SUPER_PEER) return null; // if this is not a superpeer just use this.LOCAL_SUPER_PEER
+
+        return null; //TODO: implement
     }
 
     public File getResource(String name) {

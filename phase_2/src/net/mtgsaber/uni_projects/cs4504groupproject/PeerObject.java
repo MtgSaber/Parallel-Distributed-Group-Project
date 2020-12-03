@@ -34,6 +34,8 @@ public class PeerObject implements Consumer<Event> {
     private final Map<Integer, Pair<Thread, Socket>> SOCKETS = new HashMap<>(); // Keeps track of the threads created for sockets;
     private final PriorityQueue<Integer> PORT_QUEUE = new PriorityQueue<>((o1, o2) -> o2 - o1); // This will ensure that lower ports will be at front of queue
 
+    private final Set<Thread> WORKER_THREAD_SET = new HashSet<>(); // to keep track of worker threads
+
     /* ~~~~~~~~~~~~~ strings calculated at object instantiation ~~~~~~~~~~~~~~~~ */
     public final String INCOMING_CONNECTION_EVENT_NAME;
     public final String DOWNLOAD_COMMAND_EVENT_NAME;
@@ -150,7 +152,7 @@ public class PeerObject implements Consumer<Event> {
     }
 
     /**
-     * This is used to push events onto this client's event queue. Used by the listening thread and by the central event manager.
+     * This is used to push events onto this peer's event queue. Used by the listening thread and by the central event manager.
      * @param e the event to process.
      */
     @Override
@@ -173,18 +175,42 @@ public class PeerObject implements Consumer<Event> {
      * Not yet fully implemented.
      */
     private void shutdown() {
-        // TODO: clean up resources for shutdown.
-        CONFIG.saveToFile();
-        CLIENT_EVENT_MANAGER.shutdown();
+        // TODO: clean up resources for shutdown (Andrew).
+        // join all worker threads and socket threads or kill them if they take too long.
+        for (Thread worker : WORKER_THREAD_SET) {
+            try {
+                worker.join(); // TODO: decide on a wait time
+            } catch (InterruptedException iex) {
+                Logging.log(Level.WARNING, "Took too long to join thread \"" + worker.getName() + "\".");
+                while (!worker.getState().equals(Thread.State.TERMINATED)) {
+                    Logging.log(Level.WARNING, "Interrupting thread \"" + worker.getName() + "\".");
+                    worker.interrupt();
+                }
+            }
+        }
+        for (Pair<Thread, Socket> socketThread : SOCKETS.values()) {
+            try {
+                socketThread.KEY.join(); // TODO: decide on a wait time
+            } catch (InterruptedException iex) {
+                Logging.log(Level.WARNING, "Took too long to join thread \"" + socketThread.KEY.getName() + "\".");
+                while (!socketThread.KEY.getState().equals(Thread.State.TERMINATED)) {
+                    Logging.log(Level.WARNING, "Interrupting thread \"" + socketThread.KEY.getName() + "\".");
+                    socketThread.KEY.interrupt();
+                }
+            }
+        }
         HANDSHAKE_SERVER.shutdown(HANDSHAKE_THREAD);
+        CLIENT_EVENT_MANAGER.shutdown();
+        CONFIG.saveToFile();
     }
 
     /**
-     * This should be called before trying to use this client. It is already taken care of in Main.createPeer().
+     * This should be called before trying to use this peer. It is already taken care of in Main.createPeer().
      */
     public void start() {
         CLIENT_EVENT_MANAGER_THREAD.start();
         HANDSHAKE_THREAD.start();
+        Logging.log(Level.INFO, "Peer \"" + CONFIG.SELF.NAME + "\" of group \"" + CONFIG.SELF.GROUP + "\" started.");
     }
 
     /**
@@ -192,7 +218,7 @@ public class PeerObject implements Consumer<Event> {
      * The socket has already been used to decide which action to call, and this is the action to call.
      */
     private void uploadFile(Socket socket) {
-        // TODO: upload file to remote client
+        // TODO: upload file to remote peer
     }
 
     /**
@@ -200,7 +226,18 @@ public class PeerObject implements Consumer<Event> {
      * The socket has already been used to decide which action to call, and this is the action to call.
      */
     private void processRoutingRequest(Socket socket) {
-        // TODO: respond through this new socket to the routing request that was received
+        PeerRoutingData routingData = CONFIG.getPeer("INSERT REQUESTED PEER NAME HERE");
+        if (routingData != null) {
+            // TODO: give the routing data to the requesting peer.
+        } else {
+            // this could block for a little bit, so make sure the socket doesn't close. whatever that entails.
+            routingData = issueRoutingRequest("INSERT REQUESTED PEER NAME HERE", "INSERT REQUESTED PEER GROUP HERE");
+            if (routingData != null) {
+                // TODO: respond through this new socket to the routing request that was received
+            } else {
+                // TODO: the data cannot be found. respond accordingly.
+            }
+        }
     }
 
     /**
@@ -221,19 +258,31 @@ public class PeerObject implements Consumer<Event> {
     }
 
     /**
+     * This method will, through various means, return the PeerRoutingData of the requested remote peer, null if it cannot be found.
+     * THIS METHOD WILL BLOCK UNTIL THE DATA IS RETRIEVED.
+     * For superpeers:
+     *      this first checks the internal routing table. If it isn't there, it forwards this to the correct superpeer.
+     *      If this is no superpeer for the remote peer's group, null is returned.
      *
-     * @param remoteClientName
-     * @param remoteClientGroup
-     * @return
+     * For non-super peers:
+     *      this first checks the cache for a non-expired entry of the requested peer.
+     *      If it isn't cached, it forwards the request to this peer's local superpeer.
+     *
+     * This is used by the performDownload() and processRoutingRequest() methods.
+     * @param remoteClientName the name of the peer whose routing data we are requesting
+     * @param remoteClientGroup the name of the group that the target peer is a member of
+     * @return the PeerRoutingData of the target peer, null if it could not be found.
      */
     private PeerRoutingData issueRoutingRequest(String remoteClientName, String remoteClientGroup) {
         PeerRoutingData peerRoutingData = CONFIG.getPeer(remoteClientName);
         if (peerRoutingData == null) {
             if (CONFIG.SELF.IS_SUPER_PEER) {
                 // TODO: open a socket to send a routing request to the appropriate superpeer through
+                PeerRoutingData remoteSuperPeerRoutingData = CONFIG.getSuperPeer(remoteClientGroup);
+                if (remoteSuperPeerRoutingData == null) return null;
                 try {
                     openSocket(null, -1, socket -> { // the address should be that of the remote group's superpeer. might need to add a map for fellow superpeers.
-                        // TODO: use the socket and
+                        // TODO: use the socket to communicate
                     });
                 } catch (IOException ioex) {
                     // TODO: process the exception
@@ -254,21 +303,41 @@ public class PeerObject implements Consumer<Event> {
         return peerRoutingData;
     }
 
+    /**
+     * Used as the handler for DownloadCommandEvent events from main.
+     * This method spawns a worker thread to take care of the download overhead.
+     * @param e the download command event.
+     */
     private void performDownload(DownloadCommandEvent e) {
-        new Thread(() -> {
-            PeerRoutingData targetPeerRoutingData = issueRoutingRequest(e.REMOTE_PEER_NAME, e.REMOTE_PEER_GROUP);
-            try {
-                openSocket(targetPeerRoutingData.IP_ADDRESS, targetPeerRoutingData.HANDSHAKE_PORT, socket -> {
-                    // TODO: use socket and the information from e to perform the download.
-
-                });
-            } catch (IOException ioex) {
-                // TODO: handle the exception
-                // maybe push an event to the central event manager so that the UI can report the error to the user?
-            }
-        }).start();
+        Thread worker = new Thread(() -> { // issueRoutingRequest is blocking, so it's best to keep it separate from the rest of what this peer needs to do.
+                try {
+                    PeerRoutingData targetPeerRoutingData = issueRoutingRequest(e.REMOTE_PEER_NAME, e.REMOTE_PEER_GROUP);
+                    if (targetPeerRoutingData == null) {
+                        // TODO: report the failed attempt
+                        return;
+                    }
+                    openSocket(targetPeerRoutingData.IP_ADDRESS, targetPeerRoutingData.HANDSHAKE_PORT, socket -> {
+                        // TODO: use socket and the information from e to perform the download.
+                    });
+                } catch (IOException ioex) {
+                    // TODO: handle the exception
+                    // maybe push an event to the central event manager so that the UI can report the error to the user?
+                } finally {
+                    synchronized (WORKER_THREAD_SET) {
+                        WORKER_THREAD_SET.remove(Thread.currentThread());
+                    }
+                }
+        });
+        synchronized (WORKER_THREAD_SET) {
+            WORKER_THREAD_SET.add(worker);
+        }
+        worker.start();
     }
 
+    /**
+     * This one is very low priority to implement since it could all be done in config files.
+     * @param event
+     */
     private void registerResource(ResourceRegistrationEvent event) {
         try {
             if (CONFIG.addResource(event.NAME, event.FILE)) {

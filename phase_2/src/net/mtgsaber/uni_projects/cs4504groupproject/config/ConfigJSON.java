@@ -3,7 +3,7 @@ package net.mtgsaber.uni_projects.cs4504groupproject.config;
 import com.google.gson.annotations.SerializedName;
 import net.mtgsaber.uni_projects.cs4504groupproject.PeerRoutingData;
 
-public class ConfigJSON {
+public final class ConfigJSON {
     @SerializedName("SelfParams")
     public final PeerRoutingData SELF;
 
