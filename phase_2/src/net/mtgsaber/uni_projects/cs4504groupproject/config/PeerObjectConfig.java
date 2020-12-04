@@ -23,8 +23,6 @@ public final class PeerObjectConfig {
     public final long PEER_CACHE_TIME_LIMIT;
     public final PeerRoutingData LOCAL_SUPER_PEER;
     public final PeerRoutingData SELF;
-    public final int STARTING_PORT;
-    public final int PORT_RANGE;
     // TODO: add a map for fellow superpeers.
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -39,15 +37,11 @@ public final class PeerObjectConfig {
         PeerObjectConfigJSON json = GSON.fromJson(new FileReader(configFile), PeerObjectConfigJSON.class);
         boolean resMismatch = json.RESOURCE_REGISTRY.RES_MAP_KEYS.length != json.RESOURCE_REGISTRY.RES_MAP_VALS.length;
         boolean cacheTimeRange = json.PEER_CACHE_TIME_LIMIT < 0;
-        boolean startPortRange = json.STARTING_PORT < 1025;
-        boolean portRange = json.PORT_RANGE < 0;
-        if (resMismatch || cacheTimeRange || startPortRange || portRange)
+        if (resMismatch || cacheTimeRange)
             throw new FormatException(
                     "The following format errors were found in config file \"" + configFile.toString() + "\":"
                     + (resMismatch? "\n\tResourceRegistry: ResourceNames and ResourceFilePaths must have equal length!" : "")
                     + (cacheTimeRange? "\n\tRoutingCacheEntryLifespan: Must be greater than -1" : "")
-                    + (startPortRange? "\n\tNonHandshakePortRangeStart: Must be greater than 1024" : "")
-                    + (portRange? "\n\tNonHandshakePortRangeSize: Must be greater than -1" : "")
             );
 
         // resource table & registered files
@@ -68,8 +62,6 @@ public final class PeerObjectConfig {
         this.SELF = json.SELF;
         this.LOCAL_SUPER_PEER = json.LOCAL_SUPER_PEER;
         this.PEER_CACHE_TIME_LIMIT = json.PEER_CACHE_TIME_LIMIT;
-        this.STARTING_PORT = json.STARTING_PORT;
-        this.PORT_RANGE = json.PORT_RANGE;
 
         saveToFile();
     }

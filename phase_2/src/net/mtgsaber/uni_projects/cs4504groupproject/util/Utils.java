@@ -10,7 +10,8 @@ public class Utils {
     public static void joinThreadForShutdown(Thread threadToJoin) {
         if (threadToJoin == null) return;
         try {
-            threadToJoin.join(); // TODO: decide on a wait time (Andrew)
+            Logging.log(Level.INFO, "Beginning join call on thread \"" + threadToJoin.getName() + "\".");
+            threadToJoin.join(5000); // TODO: decide on a wait time (Andrew)
         } catch (InterruptedException iex) {
             Logging.log(Level.WARNING, "Took too long to join thread \"" + threadToJoin.getName() + "\".");
             while (!threadToJoin.getState().equals(Thread.State.TERMINATED)) {

@@ -1,8 +1,14 @@
 package net.mtgsaber.uni_projects.cs4504groupproject;
 
 import net.mtgsaber.uni_projects.cs4504groupproject.events.IncomingConnectionEvent;
+import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 
-import java.net.Socket;
+import java.io.IOException;
+import java.net.*;
+import java.util.logging.Level;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 
 /**
  * This acts as the "server" part of the peer object.
@@ -18,19 +24,26 @@ public class PeerObject_ListeningServer implements Runnable {
 
     @Override
     public void run() {
+
         // TODO: start listening on the CLIENT's handshake port.
-        Socket sock = new Socket(); // create socket
+        try (ServerSocket serverSocket = new ServerSocket(CLIENT.getRoutingData().HANDSHAKE_PORT)) // create socket
+        {
+            serverSocket.setSoTimeout(1000);
+            while (running) {
+                // block until an incoming connection, then accept it and assing a socket
+                Socket sock;
+                try {
+                    sock = serverSocket.accept();
+                } catch (SocketTimeoutException timeoutException) {
+                    if (running) continue;
+                    else break;
+                }
 
-        while (running) {
-            // TODO: when a connection attempt occurs at the handshake port, gather whatever information the peer needs to open a connection socket.
-
-
-
-            // TODO: pass whatever information is needed via the IncomingConnectionEvent instance. Add fields and initialize them in the constructor as necessary.
-            CLIENT.accept(new IncomingConnectionEvent(CLIENT));
+                CLIENT.accept(new IncomingConnectionEvent(sock)); // dispatch event to this client's PeerObject
+            }
+        } catch (IOException e) {
+            Logging.log(Level.SEVERE, "Could not start listening server: IO error: " + e.toString());
         }
-
-        // TODO: stop listening for messages and release any resources in use.
     }
 
     public void shutdown(Thread myThread) {

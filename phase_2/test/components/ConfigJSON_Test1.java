@@ -18,7 +18,6 @@ public class ConfigJSON_Test1 {
         PeerObjectConfigJSON c = new PeerObjectConfigJSON(
                 peers[0],
                 peers[0],
-                65001, 8,
                 600000,
                 new PeerObjectConfigJSON.ResourceRegistry(
                         new String[]{"Res1", "Res2", "Res3"},

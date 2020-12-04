@@ -1,6 +1,5 @@
 package net.mtgsaber.uni_projects.cs4504groupproject;
 
-import net.mtgsaber.lib.algorithms.Pair;
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
@@ -18,6 +17,7 @@ import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.logging.Level;
+import java.io.BufferedWriter;
 
 public class PeerObject implements Consumer<Event> {
     /* ~~~~~~~~~~~ internal structures and threads. ~~~~~~~~~~~~~~~~~~~~~ */
@@ -26,17 +26,19 @@ public class PeerObject implements Consumer<Event> {
     private final EventManager CENTRAL_EVENT_MANAGER; // serves as the communication medium for main and other peers.
 
     // handles work that needs to be done by this peer. i.e. starting download sockets, registering files, processing incoming network messages, etc.
-    private final AsynchronousEventManager CLIENT_EVENT_MANAGER;
-    private final Thread CLIENT_EVENT_MANAGER_THREAD; // thread for this peer's internal event manager
+    private final AsynchronousEventManager PEER_EVENT_MANAGER;
+    private final Thread PEER_EVENT_MANAGER_THREAD; // thread for this peer's internal event manager
 
     // dedicated process that waits on a port until a network message is received, then forwards it to this peer's internal event manager and goes back to waiting.
-    private final PeerObject_ListeningServer HANDSHAKE_SERVER;
-    private final Thread HANDSHAKE_THREAD; // the listening server resides on this thread
+    private final PeerObject_ListeningServer LISTENING_SERVER;
+    private final Thread SERVER_THREAD; // the listening server resides on this thread
 
-    private final Map<Integer, Pair<Thread, Socket>> SOCKETS = new HashMap<>(); // Keeps track of the threads created for sockets;
-    private final PriorityQueue<Integer> PORT_QUEUE = new PriorityQueue<>((o1, o2) -> o2 - o1); // This will ensure that lower ports will be at front of queue
-
+    private final Set<Thread> SOCKET_THREAD_SET = new HashSet<>(); // Keeps track of the threads created for sockets;
     private final Set<Thread> WORKER_THREAD_SET = new HashSet<>(); // to keep track of worker threads
+
+    // These are for shutdown synchronization
+    private final Container<PeerObjectLifecycleStates> STATE = new Container<>(null);
+    private final Object SHUTDOWN_BLOCKING_LOCK = new Object();
 
     /* ~~~~~~~~~~~~~ strings calculated at object instantiation ~~~~~~~~~~~~~~~~ */
     public final String INCOMING_CONNECTION_EVENT_NAME;
@@ -51,12 +53,14 @@ public class PeerObject implements Consumer<Event> {
         this.CENTRAL_EVENT_MANAGER = centralEventManager; // given by main for communications
 
         // internal event manager setup
-        CLIENT_EVENT_MANAGER = new AsynchronousEventManager();
-        CLIENT_EVENT_MANAGER_THREAD = new Thread(CLIENT_EVENT_MANAGER);
-        CLIENT_EVENT_MANAGER.setThreadInstance(CLIENT_EVENT_MANAGER_THREAD);
+        PEER_EVENT_MANAGER = new AsynchronousEventManager();
+        PEER_EVENT_MANAGER_THREAD = new Thread(
+                PEER_EVENT_MANAGER,
+                CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME + "_InternalEventManagerThread"
+        );
 
         // calculate event name produced by port listening thread
-        this.INCOMING_CONNECTION_EVENT_NAME = CONFIG.SELF.NAME + IncomingConnectionEvent.SUFFIX;
+        this.INCOMING_CONNECTION_EVENT_NAME = IncomingConnectionEvent.NAME;
 
         // set up event names produced by main's UI
         this.DOWNLOAD_COMMAND_EVENT_NAME = CONFIG.SELF.NAME + DownloadCommandEvent.SUFFIX;
@@ -72,16 +76,111 @@ public class PeerObject implements Consumer<Event> {
 
         hookEventHandlers(); // set up event handlers.
 
+        /*
         // fill the port queue with the configured range of ports
         for (int i = peerObjectConfig.STARTING_PORT; i < peerObjectConfig.PORT_RANGE; i++)
             PORT_QUEUE.add(i); // add the port in question
 
+         */
+
         // start or first thread this peer will need: a listening handshake server
-        HANDSHAKE_THREAD = new Thread(
-                HANDSHAKE_SERVER = new PeerObject_ListeningServer(this),
-                peerObjectConfig.SELF.NAME+"_HandshakeServer"
+        SERVER_THREAD = new Thread(
+                LISTENING_SERVER = new PeerObject_ListeningServer(this),
+                peerObjectConfig.SELF.GROUP + "." + peerObjectConfig.SELF.NAME+"_HandshakeServer"
         );
+
+        synchronized (STATE) {
+            STATE.set(PeerObjectLifecycleStates.READY);
+        }
     }
+
+    /**
+     * Simple getter.
+     * @return the routing data as defined by the configuration for this peer.
+     */
+    public PeerRoutingData getRoutingData() {
+        return CONFIG.SELF;
+    }
+
+    /**
+     * This should be called before trying to use this peer. It is already taken care of in Main.createPeer().
+     */
+    public void start() {
+        synchronized (STATE) {
+            if (STATE.get().equals(PeerObjectLifecycleStates.READY)) {
+                PEER_EVENT_MANAGER_THREAD.start();
+                SERVER_THREAD.start();
+                Logging.log(Level.INFO, "Peer \"" + CONFIG.SELF.NAME + "\" of group \"" + CONFIG.SELF.GROUP + "\" started.");
+                STATE.set(PeerObjectLifecycleStates.ALIVE);
+            }
+        }
+    }
+
+    /**
+     * Closes and shuts down any structures and threads used by this peer. Should block until all resources are closed.
+     * Not yet fully implemented.
+     */
+    public void shutdown() {
+        boolean permissionToPerformShutdownProcedure;
+        synchronized (STATE) {
+            switch (STATE.get()) {
+                case READY -> {
+                    STATE.set(PeerObjectLifecycleStates.TERMINATED);
+                    return;
+                }
+                case ALIVE -> {
+                    STATE.set(PeerObjectLifecycleStates.TERMINATING);
+                    permissionToPerformShutdownProcedure = true;
+                }
+                case TERMINATING -> {
+                    permissionToPerformShutdownProcedure = false;
+                }
+                default -> {
+                    return;
+                }
+            }
+        }
+        if (permissionToPerformShutdownProcedure) {
+            // join all worker threads and socket threads or kill them if they take too long.
+            Logging.log(Level.INFO, "Beginning shutdown procedure for client " + CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME);
+            synchronized (WORKER_THREAD_SET) {
+                for (Thread worker : WORKER_THREAD_SET)
+                    Utils.joinThreadForShutdown(worker);
+            }
+            synchronized (SOCKET_THREAD_SET) {
+                for (Thread socketThread : SOCKET_THREAD_SET)
+                    Utils.joinThreadForShutdown(socketThread);
+            }
+            LISTENING_SERVER.shutdown(SERVER_THREAD);
+            Utils.joinThreadForShutdown(SERVER_THREAD);
+            PEER_EVENT_MANAGER.shutdown();
+            Utils.joinThreadForShutdown(PEER_EVENT_MANAGER_THREAD);
+            CONFIG.saveToFile();
+            synchronized (STATE) {
+                STATE.set(PeerObjectLifecycleStates.TERMINATED);
+            }
+            synchronized (SHUTDOWN_BLOCKING_LOCK) {
+                SHUTDOWN_BLOCKING_LOCK.notifyAll();
+            }
+        } else {
+            try {
+                synchronized (SHUTDOWN_BLOCKING_LOCK) {
+                    SHUTDOWN_BLOCKING_LOCK.wait(30000);
+                }
+            } catch (InterruptedException e) {
+                PeerObjectLifecycleStates finalState = STATE.get();
+                synchronized (STATE) {
+                    if (!finalState.equals(PeerObjectLifecycleStates.TERMINATED)) {
+                        Logging.log(Level.SEVERE, "Interrupted while waiting on shutdown procedure to finish on another thread. This should never happen.");
+                    } else {
+                        Logging.log(Level.INFO, "Shutdown procedure has finished successfully on some other thread.");
+                    }
+                }
+            }
+        }
+    }
+
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ EVENT SYSTEM BEHAVIORS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
     /**
      * Registers handlers for events on both this peer's internal event manager AND the central event manager used by main.
@@ -89,68 +188,25 @@ public class PeerObject implements Consumer<Event> {
     private void hookEventHandlers() {
         // This event is produced by the port listening thread. should be of type IncomingConnectionEvent.
         // The code for using the socket is executed on a different thread to minimize downtime for this peer's internal event manager.
-        CLIENT_EVENT_MANAGER.addHandler(INCOMING_CONNECTION_EVENT_NAME, event -> {
+        PEER_EVENT_MANAGER.addHandler(INCOMING_CONNECTION_EVENT_NAME, event -> {
             IncomingConnectionEvent e = ((IncomingConnectionEvent) event);
-            // TODO: Add any fields necessary to the IncomingConnectionEvent class necessary to open a socket to the remote peer which is trying to connect.
-
-            // this section takes care of actually opening the socket. this.actionAcceptConnection actually uses the socket.
-            try {
-                openSocket("REMOTE ADDRESS HERE", -1, this::actionAcceptConnection); // TODO: replace first two args with remote ip address and remote port.
-            } catch (IOException ioex) {
-                //TODO: handle the exception
-            }
+            actionAcceptConnection(e.SOCK);
         });
 
         // This event is produced by the main thread's UI. Implementation is delegated to the performDownload() method farther down.
-        CLIENT_EVENT_MANAGER.addHandler(
+        PEER_EVENT_MANAGER.addHandler(
                 DOWNLOAD_COMMAND_EVENT_NAME,
                 event -> performDownload((DownloadCommandEvent) event)
         );
 
         // This event is produced by the main thread's UI. Implementation is delegated to the shutdown() method farther down.
-        CLIENT_EVENT_MANAGER.addHandler(SHUTDOWN_COMMAND_EVENT_NAME, event -> shutdown());
+        PEER_EVENT_MANAGER.addHandler(SHUTDOWN_COMMAND_EVENT_NAME, event -> shutdown());
 
         // This event is produced by the main thread's UI. Implementation is delegated to the registerResource() method farther down.
-        CLIENT_EVENT_MANAGER.addHandler(
+        PEER_EVENT_MANAGER.addHandler(
                 RESOURCE_REGISTRATION_EVENT_NAME,
                 event -> registerResource(((ResourceRegistrationEvent) event))
         );
-    }
-
-    /**
-     * Simple Getter method.
-     * @return The name of this peer as defined by the SELF_PARAMS section of the configuration file.
-     */
-    public String getName() { return CONFIG.SELF.NAME; }
-
-    /**
-     * Creates a socket object for use in other methods.
-     * @param address the remote address of the host to connect to.
-     * @param remotePort the remote port of the host to connect to. This should be the handshake port.
-     * @param action A lambda to "consume" the socket. This should use the socket and properly shut it down before terminating.
-     * @throws IOException if the socket could not be created.
-     */
-    private void openSocket(String address, int remotePort, SocketAction action)
-            throws IOException {
-        if (PORT_QUEUE.isEmpty()) throw new IOException("Client overloaded; No more ports available!");
-        int localPort = PORT_QUEUE.remove();
-        Socket socket = new Socket(address, remotePort, null, localPort);
-        Thread socketThread = new Thread(() -> {
-            action.useSocket(socket);
-            try {
-                socket.close();
-                synchronized (SOCKETS) {
-                    SOCKETS.remove(localPort);
-                }
-                PORT_QUEUE.add(localPort);
-            } catch (IOException e) {
-                Logging.log(Level.SEVERE, "Exception while closing socket on port " + socket.getLocalPort() + ": \"" + e.getMessage()+ "\"");
-            }
-        });
-        synchronized (SOCKETS) {
-            SOCKETS.put(localPort, new Pair<>(socketThread, socket));
-        }
-        socketThread.start();
     }
 
     /**
@@ -159,7 +215,25 @@ public class PeerObject implements Consumer<Event> {
      */
     @Override
     public void accept(Event e) {
-        CLIENT_EVENT_MANAGER.push(e);
+        PEER_EVENT_MANAGER.push(e);
+    }
+
+    /**
+     * This one is very low priority to implement since it could all be done in config files.
+     * @param event
+     */
+    private void registerResource(ResourceRegistrationEvent event) {
+        try {
+            if (CONFIG.addResource(event.NAME, event.FILE)) {
+                // TODO: push an event to the central event manager to let main() know that it worked
+            } else {
+                // TODO: push an event to the central event manager to let main() know that it failed
+            }
+        } catch (FileNotFoundException fnfex) {
+            // TODO: push an event to the central event manager to let main() know that it failed
+        } catch (TimeoutException toex) {
+            // TODO: push an event to the central event manager to let main() know that it failed
+        }
     }
 
     /**
@@ -172,29 +246,25 @@ public class PeerObject implements Consumer<Event> {
         return Arrays.copyOf(CENTRAL_EVENT_NAMES, CENTRAL_EVENT_NAMES.length);
     }
 
-    /**
-     * Closes and shuts down any structures and threads used by this peer. Should block until all resources are closed.
-     * Not yet fully implemented.
-     */
-    private void shutdown() {
-        // TODO: clean up resources for shutdown (Andrew).
-        // join all worker threads and socket threads or kill them if they take too long.
-        for (Thread worker : WORKER_THREAD_SET) Utils.joinThreadForShutdown(worker);
-        for (Pair<Thread, Socket> socketThread : SOCKETS.values()) Utils.joinThreadForShutdown(socketThread.KEY);
-        HANDSHAKE_SERVER.shutdown(HANDSHAKE_THREAD);
-        Utils.joinThreadForShutdown(HANDSHAKE_THREAD);
-        CLIENT_EVENT_MANAGER.shutdown();
-        Utils.joinThreadForShutdown(CLIENT_EVENT_MANAGER_THREAD);
-        CONFIG.saveToFile();
-    }
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SERVER BEHAVIORS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
     /**
-     * This should be called before trying to use this peer. It is already taken care of in Main.createPeer().
+     * This is the initial socket action for any and all incoming connections.
+     * Call this in the handler for IncomingConnectionEvent events under the hookEvents() method.
+     * @param sock Should be a newly created socket.
      */
-    public void start() {
-        CLIENT_EVENT_MANAGER_THREAD.start();
-        HANDSHAKE_THREAD.start();
-        Logging.log(Level.INFO, "Peer \"" + CONFIG.SELF.NAME + "\" of group \"" + CONFIG.SELF.GROUP + "\" started.");
+    private void actionAcceptConnection(Socket sock) {
+        // TODO: use the socket to determine what kind of request this is.
+
+        if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
+            uploadFile(sock);
+        } else if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
+            processRoutingRequest(sock);
+        }
+
+        // TODO: let remote peer know that this peer is done communicating. Don't call .close() on the socket though, that is reserved for the openSocket() method.
     }
 
     /**
@@ -223,22 +293,36 @@ public class PeerObject implements Consumer<Event> {
             }
         }
     }
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+
+
+
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CLIENT BEHAVIORS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
     /**
-     * This is the initial socket action for any and all incoming connections.
-     * Call this in the handler for IncomingConnectionEvent events under the hookEvents() method.
-     * @param socket Should be a newly created socket.
+     * Helper method.
+     * Creates a socket object for use in other methods.
+     * @param remoteAddress the remote address of the host to connect to.
+     * @param remotePort the remote port of the host to connect to. This should be the handshake port.
+     * @param action A lambda to "consume" the socket. This should use the socket and properly shut it down before terminating.
+     * @throws IOException if the socket could not be created.
      */
-    private void actionAcceptConnection(Socket socket) {
-        // TODO: use the socket to determine what kind of request this is.
+    private void openSocket(String remoteAddress, int remotePort, SocketAction action) {
+        Thread socketThread = new Thread(
+                () -> {
+                    try (Socket socket = new Socket(remoteAddress, remotePort, null, 0)) {
+                        action.useSocket(socket);
 
-        if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
-            uploadFile(socket);
-        } else if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
-            processRoutingRequest(socket);
-        }
-
-        // TODO: let remote peer know that this peer is done communicating. Don't call .close() on the socket though, that is reserved for the openSocket() method.
+                        synchronized (SOCKET_THREAD_SET) {
+                            SOCKET_THREAD_SET.remove(Thread.currentThread());
+                        }
+                    } catch (IOException e) {
+                        Logging.log(Level.SEVERE, "Exception while using socket socket: \"" + e.getMessage()+ "\"");
+                    }
+                },
+                CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME + "_SocketThread_remoteAddress=\"" + remoteAddress + "\"_port=" + remotePort
+        );
+        socketThread.start();
     }
 
     /**
@@ -262,56 +346,56 @@ public class PeerObject implements Consumer<Event> {
         if (peerRoutingData == null) {
             PeerRoutingData superPeerRoutingData;
             if (CONFIG.SELF.IS_SUPER_PEER) {
-                // TODO: open a socket to send a routing request to the appropriate superpeer through
                 superPeerRoutingData = CONFIG.getSuperPeer(remoteClientGroup);
                 if (superPeerRoutingData == null) return null;
             } else {
                 superPeerRoutingData = CONFIG.LOCAL_SUPER_PEER;
             }
 
+            Container<PeerRoutingData> response = new Container<>(null); // used to save the response from the thread socket net coode
+            Container<Thread> socketThreadContainer = new Container<>(null); // used to find the thread that was created for the routing request socket, and is also used as a synchronization lock.
+            openSocket(superPeerRoutingData.IP_ADDRESS, superPeerRoutingData.HANDSHAKE_PORT, socket -> {
+                socketThreadContainer.set(Thread.currentThread());
+                synchronized (socketThreadContainer) {
+                    socketThreadContainer.notify();
+                }
+                /* ~~~~~~~~~~~~~~~~~~~ This is the actual net code for performing the routing table lookup request ~~~~~~~~~~~~~~~~~~~~~~ */
+                // TODO: use the socket to make the request and get the response
+                //BufferedWriter writer = new BufferedWriter(socket.getOutputStream());
+
+                // NOTE: if there was some sort of error, and proper peer routing data is not received, pass null to response.set() instead of the line below.
+                response.set(new PeerRoutingData("", "", "", false, -1)); // TODO: store routing request responses into here.
+                /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+            });
+
+
+            /* ~~~~~~ This section is to make sure that this method blocks until the response is received or a time limit is reached ~~~~~~~~~~ */
             try {
-                Container<PeerRoutingData> response = new Container<>(null); // used to save the response from the thread socket net coode
-                Container<Integer> portAllocated = new Container<>(null); // used to find the thread that was created for the routing request socket, and is also used as a synchronization lock.
-                openSocket(superPeerRoutingData.IP_ADDRESS, superPeerRoutingData.HANDSHAKE_PORT, socket -> {
-                    portAllocated.set(socket.getLocalPort());
-                    portAllocated.notify();
-                    /* ~~~~~~~~~~~~~~~~~~~ This is the actual net code for performing the routing table lookup request ~~~~~~~~~~~~~~~~~~~~~~ */
-                    // TODO: use the socket to make the request and get the response
-
-
-                    // NOTE: if there was some sort of error, and proper peer routing data is not received, pass null to response.set() instead of the line below.
-                    response.set(new PeerRoutingData("", "", "", false, -1)); // TODO: store routing request responses into here.
-                    /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-                });
-                /* ~~~~~~~~~~~ This section is to make sure that this method blocks until the response is received or a time limit is reached ~~~~~~~~~~ */
-                try {
-                    // wait for the socket thread to tell us what the allocated port was
-                    portAllocated.wait(); //TODO: decide on a time limit (Andrew)
-                } catch (InterruptedException iex) {
-                    if (portAllocated.get() == null) { // something happened outside of what is expected of this method
-                        Logging.log(Level.WARNING, "Interrupted while waiting on the port allocation for issueRoutingRequest().");
-                        return null;
-                    } else {
-                        try {
-                            // we needed to get the port number from the socket thread to know which thread we need to join to wait for the response
-                            SOCKETS.get(portAllocated.get()).KEY.join(); //TODO: decide on a time limit (Andrew)
-                            if (response.get() == null) {
-                                return null;
-                            }
-                            peerRoutingData = response.get(); // this should be the response from the remote superpeer, as set in the openSocket() lambda block
-                            // this will return execution to the last two lines of this method
-                        } catch (InterruptedException iex2) {
-                            Logging.log(Level.WARNING, "Interrupted while joining socket thread on port " + portAllocated.get() + ".");
+                // wait for the socket thread to tell us what the allocated port was
+                synchronized (socketThreadContainer) {
+                    socketThreadContainer.wait(); //TODO: decide on a time limit (Andrew)
+                }
+            } catch (InterruptedException iex) {
+                if (socketThreadContainer.get() == null) { // something happened outside of what is expected of this method
+                    Logging.log(Level.WARNING, "Interrupted while waiting on the port allocation for issueRoutingRequest().");
+                    return null;
+                } else {
+                    try {
+                        // we needed to get the port number from the socket thread to know which thread we need to join to wait for the response
+                        socketThreadContainer.get().join(); //TODO: decide on a time limit (Andrew)
+                        if (response.get() == null) {
                             return null;
                         }
+                        peerRoutingData = response.get(); // this should be the response from the remote superpeer, as set in the openSocket() lambda block
+                        // this will return execution to the last two lines of this method
+                    } catch (InterruptedException iex2) {
+                        Logging.log(Level.WARNING, "Interrupted while joining socket thread on port " + socketThreadContainer.get() + ".");
+                        return null;
                     }
                 }
-                /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-            } catch (IOException ioex) {
-                // TODO: process the exception
-                // maybe push an event to the central event manager so that the UI can report the error to the user?
-                return null;
             }
+            /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+
         }
         if (peerRoutingData != null) CONFIG.addPeer(peerRoutingData);
         return peerRoutingData;
@@ -325,47 +409,26 @@ public class PeerObject implements Consumer<Event> {
     private void performDownload(DownloadCommandEvent e) {
         Thread worker = new Thread(
                 () -> { // issueRoutingRequest is blocking, so it's best to keep it separate from the rest of what this peer needs to do.
-                        try {
-                            PeerRoutingData targetPeerRoutingData = issueRoutingRequest(e.REMOTE_PEER_NAME, e.REMOTE_PEER_GROUP);
-                            if (targetPeerRoutingData == null) {
-                                // TODO: report the failed attempt
-                                return;
-                            }
-                            openSocket(targetPeerRoutingData.IP_ADDRESS, targetPeerRoutingData.HANDSHAKE_PORT, socket -> {
-                                // TODO: use socket and the information from e to perform the download.
-                            });
-                        } catch (IOException ioex) {
-                            // TODO: handle the exception
-                            // maybe push an event to the central event manager so that the UI can report the error to the user?
-                        } finally {
-                            synchronized (WORKER_THREAD_SET) {
-                                WORKER_THREAD_SET.remove(Thread.currentThread());
-                            }
+                        PeerRoutingData targetPeerRoutingData = issueRoutingRequest(e.REMOTE_PEER_NAME, e.REMOTE_PEER_GROUP);
+                        if (targetPeerRoutingData == null) {
+                            // TODO: report the failed attempt
+                            return;
+                        }
+                        openSocket(targetPeerRoutingData.IP_ADDRESS, targetPeerRoutingData.HANDSHAKE_PORT,
+                                socket -> {
+                                        // TODO: use socket and the information from e to perform the download.
+                                }
+                        );
+                        synchronized (WORKER_THREAD_SET) {
+                            WORKER_THREAD_SET.remove(Thread.currentThread());
                         }
                 },
-                Thread.currentThread().getName() + "_Worker-Thread_file=\"" + e.LOCAL_FILE_DESTINATION.getName() + "\""
+                CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME + "_WorkerThread_file=\"" + e.LOCAL_FILE_DESTINATION.getName() + "\""
         );
         synchronized (WORKER_THREAD_SET) {
             WORKER_THREAD_SET.add(worker);
         }
         worker.start();
     }
-
-    /**
-     * This one is very low priority to implement since it could all be done in config files.
-     * @param event
-     */
-    private void registerResource(ResourceRegistrationEvent event) {
-        try {
-            if (CONFIG.addResource(event.NAME, event.FILE)) {
-                // TODO: push an event to the central event manager to let main() know that it worked
-            } else {
-                // TODO: push an event to the central event manager to let main() know that it failed
-            }
-        } catch (FileNotFoundException fnfex) {
-            // TODO: push an event to the central event manager to let main() know that it failed
-        } catch (TimeoutException toex) {
-            // TODO: push an event to the central event manager to let main() know that it failed
-        }
-    }
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 }

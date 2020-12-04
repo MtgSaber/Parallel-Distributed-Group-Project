@@ -3,13 +3,15 @@ package net.mtgsaber.uni_projects.cs4504groupproject.events;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.uni_projects.cs4504groupproject.PeerObject;
 
+import java.net.Socket;
+
 public final class IncomingConnectionEvent implements Event {
-    public static final String SUFFIX = "_IncomingConnection";
+    public static final String NAME = "IncomingConnection";
 
-    private final String NAME;
+    public final Socket SOCK;
 
-    public IncomingConnectionEvent(PeerObject peer) {
-        this.NAME = peer.getName() + SUFFIX;
+    public IncomingConnectionEvent(Socket sock) {
+        this.SOCK = sock;
     }
 
     @Override

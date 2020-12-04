@@ -10,12 +10,6 @@ public final class PeerObjectConfigJSON {
     @SerializedName("GroupSuperpeerInfo")
     public final PeerRoutingData LOCAL_SUPER_PEER;
 
-    @SerializedName("NonHandshakePortRangeStart")
-    public final int STARTING_PORT;
-
-    @SerializedName("NonHandshakePortRangeSize")
-    public final int PORT_RANGE;
-
     @SerializedName("RoutingCacheEntryLifespan")
     public final long PEER_CACHE_TIME_LIMIT;
 
@@ -30,15 +24,12 @@ public final class PeerObjectConfigJSON {
 
     public PeerObjectConfigJSON(
             PeerRoutingData self, PeerRoutingData localSuperPeer,
-            int startingPort, int portRange,
             long peerCacheTimeLimit,
             ResourceRegistry resourceRegistry,
             PeerRoutingData[] superPeers, PeerRoutingData[] groupPeers
     ) {
         this.SELF = self;
         this.LOCAL_SUPER_PEER = localSuperPeer;
-        this.STARTING_PORT = startingPort;
-        this.PORT_RANGE = portRange;
         this.PEER_CACHE_TIME_LIMIT = peerCacheTimeLimit;
         this.RESOURCE_REGISTRY = resourceRegistry;
         this.SUPER_PEERS = superPeers;
