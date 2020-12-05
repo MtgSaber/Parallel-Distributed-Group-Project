@@ -1,7 +1,6 @@
 package net.mtgsaber.uni_projects.cs4504groupproject.events;
 
 import net.mtgsaber.lib.events.Event;
-import net.mtgsaber.uni_projects.cs4504groupproject.PeerObject;
 
 import java.net.Socket;
 

@@ -1,23 +1,26 @@
 package net.mtgsaber.uni_projects.cs4504groupproject;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
 import net.mtgsaber.uni_projects.cs4504groupproject.config.PeerObjectConfig;
 import net.mtgsaber.uni_projects.cs4504groupproject.events.*;
+import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.Ack;
+import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.client.ResourceRequest;
+import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.server.ResourceResponse;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Container;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.SocketAction;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Utils;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.logging.Level;
-import java.io.BufferedWriter;
 
 public class PeerObject implements Consumer<Event> {
     /* ~~~~~~~~~~~ internal structures and threads. ~~~~~~~~~~~~~~~~~~~~~ */
@@ -46,6 +49,11 @@ public class PeerObject implements Consumer<Event> {
     public final String SHUTDOWN_COMMAND_EVENT_NAME;
     public final String RESOURCE_REGISTRATION_EVENT_NAME;
     private final String[] CENTRAL_EVENT_NAMES;
+
+    // These are for JSON stuff in the netcode.
+    private static final GsonBuilder GSON_BUILDER = new GsonBuilder();
+    private static final Gson NET_GSON = GSON_BUILDER.create();
+    private static final Gson LOG_GSON = GSON_BUILDER.setPrettyPrinting().create();
 
     // represents a peer with a specific config, internal event management thread, and internal network listening thread
     public PeerObject(PeerObjectConfig peerObjectConfig, EventManager centralEventManager) {
@@ -110,7 +118,7 @@ public class PeerObject implements Consumer<Event> {
             if (STATE.get().equals(PeerObjectLifecycleStates.READY)) {
                 PEER_EVENT_MANAGER_THREAD.start();
                 SERVER_THREAD.start();
-                Logging.log(Level.INFO, "Peer \"" + CONFIG.SELF.NAME + "\" of group \"" + CONFIG.SELF.GROUP + "\" started.");
+                Logging.log(Level.INFO, "Peer \"" + CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME + "\" of group \"" + CONFIG.SELF.GROUP + "\" started.");
                 STATE.set(PeerObjectLifecycleStates.ALIVE);
             }
         }
@@ -142,7 +150,7 @@ public class PeerObject implements Consumer<Event> {
         }
         if (permissionToPerformShutdownProcedure) {
             // join all worker threads and socket threads or kill them if they take too long.
-            Logging.log(Level.INFO, "Beginning shutdown procedure for client " + CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME);
+            Logging.log(Level.INFO, "Beginning shutdown procedure for client \"" + CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME + "\"");
             synchronized (WORKER_THREAD_SET) {
                 for (Thread worker : WORKER_THREAD_SET)
                     Utils.joinThreadForShutdown(worker);
@@ -253,33 +261,103 @@ public class PeerObject implements Consumer<Event> {
     /**
      * This is the initial socket action for any and all incoming connections.
      * Call this in the handler for IncomingConnectionEvent events under the hookEvents() method.
-     * @param sock Should be a newly created socket.
+     * @param sock Should be a newly accepted socket.
      */
     private void actionAcceptConnection(Socket sock) {
-        // TODO: use the socket to determine what kind of request this is.
+        try ( // these are text-based and can be used to transfer string messages. I (Andrew) prefer to transfer class serializations by using NET_GSON.
+                BufferedWriter sockTextWriter = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));
+                BufferedReader sockTextReader = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+        ) {
+            // TODO: use the socket to determine what kind of request this is.
 
-        if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
-            uploadFile(sock);
-        } else if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
-            processRoutingRequest(sock);
+            if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
+                uploadFile(sock, sockTextReader, sockTextWriter);
+            } else if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
+                processRoutingRequest(sock, sockTextReader, sockTextWriter);
+            }
+
+            // TODO: let remote peer know that this peer is done communicating.
+        } catch (IOException ioex) {
+            // TODO: handle the exception
         }
 
-        // TODO: let remote peer know that this peer is done communicating. Don't call .close() on the socket though, that is reserved for the openSocket() method.
+        // close down the socket
+        try {
+            sock.close();
+        } catch (IOException ioex) {
+            //TODO: handle exception
+        }
     }
 
     /**
-     * This is a lambda method that uses the provided socket to send the contents of a file to a remote peer.
+     * This method uploads a file to a remote peer over the socket provided.
      * The socket has already been used to decide which action to call, and this is the action to call.
+     * Obviously, this method will block until the transfer is finished, which is fine since this is executed on a dedicated socket thread.
+     * @param socket the socket connected to the remote client
+     * @param sockTextReader a text-based reader on the socket. used to read JSON serializations from the remote client.
+     * @param sockTextWriter a text-based writer on the socket. used to write JSON serializations to the remote client.
      */
-    private void uploadFile(Socket socket) {
+    private void uploadFile(Socket socket, BufferedReader sockTextReader, BufferedWriter sockTextWriter) {
         // TODO: upload file to remote peer
+        try {
+            // read the request message from the remote client
+            ResourceRequest request = NET_GSON.fromJson(sockTextReader, ResourceRequest.class);
+            Logging.log(Level.INFO, "Received ResourceRequest message from remote client: " + LOG_GSON.toJson(request, ResourceRequest.class));
+
+            // request the file from the resource registry defined by the config file
+            File resource = CONFIG.getResource(request.RESOURCE_NAME);
+            // if the file is not registered,
+            if (resource == null) {
+                // reply to the remote client that the resource isn't being shared by this peer.
+                sockTextWriter.append(
+                        NET_GSON.toJson(new ResourceResponse(false, -1), ResourceResponse.class)
+                );
+                Logging.log(Level.INFO, "Rejecting resource request for non-shared resource \"" + request.RESOURCE_NAME + "\".");
+
+            // otherwise it is registered. begin transfer procedure.
+            } else {
+                // reply to the remote client that their request has been accepted and give them the file size
+                sockTextWriter.append(
+                        NET_GSON.toJson(new ResourceResponse(true, resource.length()), ResourceResponse.class)
+                );
+
+                // wait for the client to confirm that it is ready to begin the transfer
+                Ack ack = NET_GSON.fromJson(sockTextReader, Ack.class);
+
+                // if the client is ready,
+                if (ack.IS_ACKNOWLEDGED) {
+                    // safely open an input stream on the file
+                    try (FileInputStream fileInput = new FileInputStream(resource)) {
+                        // we need a different kind of stream for byte transfers. sockTextReader & sockTextWriter are for text-based communications (i.e. JSON)
+                        OutputStream outBytesStream = socket.getOutputStream();
+                        Logging.log(Level.INFO, "Beginning non-encrypted transfer of file \"" + resource.getName() + "\"");
+        /* ~~~~~~~~~~~~ gotten from https://stackoverflow.com/questions/9520911/java-sending-and-receiving-file-byte-over-sockets ~~~~~~~~~~~~~~~~ */
+                        int count;
+                        byte[] buffer = new byte[8192]; // or 4096, or more
+                        while ((count = fileInput.read(buffer)) > 0)
+                            outBytesStream.write(buffer, 0, count);
+        /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+                    } catch (FileNotFoundException fnfex) {
+                        // log the error
+                        Logging.log(
+                                Level.SEVERE,
+                                "File \"" + resource.getName() + "\" not found, but was successfully registered as resource of name \""
+                                        + request.RESOURCE_NAME + "\" for client " + CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME
+                                        + ". Was the file deleted during runtime?\n" + fnfex.getMessage()
+                        );
+                    }
+                }
+            }
+        } catch (IOException ioex) {
+            Logging.log(Level.WARNING, "Error while using socket for connection from remote client: " + ioex.getMessage());
+        }
     }
 
     /**
-     * Like the above method, but this one uses the socket to communicate this superpeer's response to a routing table lookup request.
+     * This method uses the socket to communicate this superpeer's response to a routing table lookup request.
      * The socket has already been used to decide which action to call, and this is the action to call.
      */
-    private void processRoutingRequest(Socket socket) {
+    private void processRoutingRequest(Socket socket, BufferedReader sockTextReader, BufferedWriter sockTextWriter) {
         PeerRoutingData routingData = CONFIG.getPeer("INSERT REQUESTED PEER NAME HERE");
         if (routingData != null) {
             // TODO: give the routing data to the requesting peer.
@@ -298,14 +376,12 @@ public class PeerObject implements Consumer<Event> {
 
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CLIENT BEHAVIORS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
     /**
      * Helper method.
      * Creates a socket object for use in other methods.
      * @param remoteAddress the remote address of the host to connect to.
      * @param remotePort the remote port of the host to connect to. This should be the handshake port.
      * @param action A lambda to "consume" the socket. This should use the socket and properly shut it down before terminating.
-     * @throws IOException if the socket could not be created.
      */
     private void openSocket(String remoteAddress, int remotePort, SocketAction action) {
         Thread socketThread = new Thread(
@@ -352,7 +428,7 @@ public class PeerObject implements Consumer<Event> {
                 superPeerRoutingData = CONFIG.LOCAL_SUPER_PEER;
             }
 
-            Container<PeerRoutingData> response = new Container<>(null); // used to save the response from the thread socket net coode
+            Container<PeerRoutingData> routingResponse = new Container<>(null); // used to save the routingResponse from the thread socket net coode
             Container<Thread> socketThreadContainer = new Container<>(null); // used to find the thread that was created for the routing request socket, and is also used as a synchronization lock.
             openSocket(superPeerRoutingData.IP_ADDRESS, superPeerRoutingData.HANDSHAKE_PORT, socket -> {
                 socketThreadContainer.set(Thread.currentThread());
@@ -360,16 +436,17 @@ public class PeerObject implements Consumer<Event> {
                     socketThreadContainer.notify();
                 }
                 /* ~~~~~~~~~~~~~~~~~~~ This is the actual net code for performing the routing table lookup request ~~~~~~~~~~~~~~~~~~~~~~ */
-                // TODO: use the socket to make the request and get the response
-                //BufferedWriter writer = new BufferedWriter(socket.getOutputStream());
+                // TODO: use the socket to make the request and get the routingResponse
+                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-                // NOTE: if there was some sort of error, and proper peer routing data is not received, pass null to response.set() instead of the line below.
-                response.set(new PeerRoutingData("", "", "", false, -1)); // TODO: store routing request responses into here.
+                // NOTE: if there was some sort of error, and proper peer routing data is not received, pass null to routingResponse.set() instead of the line below.
+                routingResponse.set(new PeerRoutingData("", "", "", false, -1)); // TODO: store routing request responses into here.
                 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
             });
 
 
-            /* ~~~~~~ This section is to make sure that this method blocks until the response is received or a time limit is reached ~~~~~~~~~~ */
+        /* ~~~~~~~~~~~~ This section is to make sure that this method blocks until the routingResponse is received or a time limit is reached ~~~~~~~~~~~~~~~~~ */
             try {
                 // wait for the socket thread to tell us what the allocated port was
                 synchronized (socketThreadContainer) {
@@ -381,12 +458,12 @@ public class PeerObject implements Consumer<Event> {
                     return null;
                 } else {
                     try {
-                        // we needed to get the port number from the socket thread to know which thread we need to join to wait for the response
+                        // we needed to get the port number from the socket thread to know which thread we need to join to wait for the routingResponse
                         socketThreadContainer.get().join(); //TODO: decide on a time limit (Andrew)
-                        if (response.get() == null) {
+                        if (routingResponse.get() == null) {
                             return null;
                         }
-                        peerRoutingData = response.get(); // this should be the response from the remote superpeer, as set in the openSocket() lambda block
+                        peerRoutingData = routingResponse.get(); // this should be the routingResponse from the remote superpeer, as set in the openSocket() lambda block
                         // this will return execution to the last two lines of this method
                     } catch (InterruptedException iex2) {
                         Logging.log(Level.WARNING, "Interrupted while joining socket thread on port " + socketThreadContainer.get() + ".");
@@ -394,8 +471,7 @@ public class PeerObject implements Consumer<Event> {
                     }
                 }
             }
-            /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
+        /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
         }
         if (peerRoutingData != null) CONFIG.addPeer(peerRoutingData);
         return peerRoutingData;
@@ -412,7 +488,7 @@ public class PeerObject implements Consumer<Event> {
                         PeerRoutingData targetPeerRoutingData = issueRoutingRequest(e.REMOTE_PEER_NAME, e.REMOTE_PEER_GROUP);
                         if (targetPeerRoutingData == null) {
                             // TODO: report the failed attempt
-                            return;
+                            Logging.log(Level.SEVERE, "Cannot perform download, peer routing information is null.");
                         }
                         openSocket(targetPeerRoutingData.IP_ADDRESS, targetPeerRoutingData.HANDSHAKE_PORT,
                                 socket -> {

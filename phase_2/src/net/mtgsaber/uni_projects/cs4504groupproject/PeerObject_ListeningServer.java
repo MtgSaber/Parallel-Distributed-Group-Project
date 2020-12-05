@@ -6,9 +6,6 @@ import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 import java.io.IOException;
 import java.net.*;
 import java.util.logging.Level;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.BufferedReader;
 
 /**
  * This acts as the "server" part of the peer object.
@@ -24,8 +21,6 @@ public class PeerObject_ListeningServer implements Runnable {
 
     @Override
     public void run() {
-
-        // TODO: start listening on the CLIENT's handshake port.
         try (ServerSocket serverSocket = new ServerSocket(CLIENT.getRoutingData().HANDSHAKE_PORT)) // create socket
         {
             serverSocket.setSoTimeout(1000);

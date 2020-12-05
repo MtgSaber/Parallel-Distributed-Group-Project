@@ -11,7 +11,7 @@ public class Utils {
         if (threadToJoin == null) return;
         try {
             Logging.log(Level.INFO, "Beginning join call on thread \"" + threadToJoin.getName() + "\".");
-            threadToJoin.join(5000); // TODO: decide on a wait time (Andrew)
+            threadToJoin.join(5000);
         } catch (InterruptedException iex) {
             Logging.log(Level.WARNING, "Took too long to join thread \"" + threadToJoin.getName() + "\".");
             while (!threadToJoin.getState().equals(Thread.State.TERMINATED)) {

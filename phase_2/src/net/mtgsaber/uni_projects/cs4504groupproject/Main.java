@@ -4,6 +4,8 @@ package net.mtgsaber.uni_projects.cs4504groupproject;
 import net.mtgsaber.lib.events.AsynchronousEventManager;
 import net.mtgsaber.lib.events.Event;
 import net.mtgsaber.lib.events.EventManager;
+
+// other project classes
 import net.mtgsaber.uni_projects.cs4504groupproject.config.PeerObjectConfig;
 import net.mtgsaber.uni_projects.cs4504groupproject.events.DownloadCommandEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.events.ShutdownEvent;
@@ -11,7 +13,6 @@ import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Utils;
 
 // Java libraries
-import javax.swing.text.AbstractDocument;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -19,7 +20,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.logging.Level;
-import java.util.Timer;
 
 public class Main {
     public static void main(String[] args) {
@@ -180,8 +180,12 @@ public class Main {
     }
 
 
-
-
+    /**
+     * Creates a peer instance, starts its threads, and hooks its event handlers for the
+     * @param peerSpace
+     * @param eventManager
+     * @param configFileLoc
+     */
     private static void createPeer(Map<String, PeerObject> peerSpace, EventManager eventManager, String configFileLoc) {
         try {
             PeerObjectConfig config = new PeerObjectConfig(new File(configFileLoc)); // this is the line that produces the exceptions being caught.

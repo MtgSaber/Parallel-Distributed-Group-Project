@@ -44,6 +44,11 @@ public final class PeerObjectConfig {
                     + (cacheTimeRange? "\n\tRoutingCacheEntryLifespan: Must be greater than -1" : "")
             );
 
+        // primitive parameters
+        this.SELF = json.SELF;
+        this.LOCAL_SUPER_PEER = json.LOCAL_SUPER_PEER;
+        this.PEER_CACHE_TIME_LIMIT = json.PEER_CACHE_TIME_LIMIT;
+
         // resource table & registered files
         for (int i = 0; i < json.RESOURCE_REGISTRY.RES_MAP_KEYS.length; i++) {
             try {
@@ -54,14 +59,15 @@ public final class PeerObjectConfig {
         }
 
         // peer table
-        for (PeerRoutingData peerRoutingData : json.GROUP_PEERS) addPeer(peerRoutingData);
-        for (PeerRoutingData peerRoutingData : json.SUPER_PEERS) addPeer(peerRoutingData);
+        for (PeerRoutingData peerRoutingData : json.GROUP_PEERS) {
+            if (SELF.IS_SUPER_PEER) peerRoutingData.makePermanent();
+            addPeer(peerRoutingData);
+        }
+        for (PeerRoutingData peerRoutingData : json.SUPER_PEERS) {
+            if (SELF.IS_SUPER_PEER) peerRoutingData.makePermanent();
+            addPeer(peerRoutingData);
+        }
         // TODO: register superpeers to separate map. see TODO comment in fields region above.
-
-        // primitive parameters
-        this.SELF = json.SELF;
-        this.LOCAL_SUPER_PEER = json.LOCAL_SUPER_PEER;
-        this.PEER_CACHE_TIME_LIMIT = json.PEER_CACHE_TIME_LIMIT;
 
         saveToFile();
     }
