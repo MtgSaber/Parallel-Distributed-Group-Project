@@ -23,7 +23,8 @@ import java.util.logging.Level;
 
 public class Main {
     public static void main(String[] args) {
-        Scanner scan = new Scanner(System.in);
+        Logging.start(System.err, true);
+        Scanner scan = getInputScanner(args);
         // initialization
 
         //variables
@@ -43,6 +44,7 @@ public class Main {
         final Thread eventManagerThread = new Thread(eventManager, "Main_EventManagerThread");
         eventManagerThread.start(); // start thread manager
 
+        /* this is already done in a helper method
         try {
             Logging.start(new FileOutputStream(args[0]), true); // log file access attempt
         } catch (FileNotFoundException e) {
@@ -50,6 +52,8 @@ public class Main {
 //            Logging.start(e.toString(), true); // log exception
             System.out.println("File not found: " + e.toString());
         }
+
+         */
 
         //UI creation
         // create this client
@@ -84,13 +88,14 @@ public class Main {
                     "(4) Shutdown target client"+
                     "(0) Exit client"); //can come back to this one
 
-            int user_command = scan.nextInt();
+            int user_command = Integer.parseInt(scan.nextLine());
+
             //switch statement to take argument for menu of commands
             switch (user_command) {
                 case 1:
                     System.out.println("Menu Options \n------------\n");
                     System.out.println("(1) Add Remote Client, Local Client, Add Remote Group, Target Resource, Add Path Name\n (2)Push Download\n");
-                    int command_choice = scan.nextInt();
+                    int command_choice = Integer.parseInt(scan.nextLine());
                     switch (command_choice) {
 
 
@@ -125,7 +130,6 @@ public class Main {
                                     System.out.println("Wrong or invalid input");
 
                             }
-                            System.out.println("Error: Incorrect input try again");
 
                     }break;
                 case 2:
@@ -135,7 +139,7 @@ public class Main {
                     break;
                 case 3:
                     System.out.println("(1)Review Logs\n(2)Add Log");
-                    int log_choice = scan.nextInt();
+                    int log_choice = Integer.parseInt(scan.nextLine());
                     if(log_choice == 1){
 
                     }else if(log_choice == 2){

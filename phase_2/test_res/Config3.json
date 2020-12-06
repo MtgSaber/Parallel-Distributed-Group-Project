@@ -1,0 +1,29 @@
+{
+  "SelfParams": {
+    "NAME": "Peer3",
+    "IP_ADDRESS": "127.0.0.1",
+    "GROUP": "Group1",
+    "IS_SUPER_PEER": false,
+    "HANDSHAKE_PORT": 65020,
+    "CREATION_TIME": 1607047988635
+  },
+  "GroupSuperpeerInfo": {
+    "NAME": "Peer1",
+    "IP_ADDRESS": "127.0.0.1",
+    "GROUP": "Group1",
+    "IS_SUPER_PEER": true,
+    "HANDSHAKE_PORT": 65000,
+    "CREATION_TIME": 1607047988635
+  },
+  "RoutingCacheEntryLifespan": 600000,
+  "ResourceRegistry": {
+    "ResourceNames": [
+      "Res3"
+    ],
+    "ResourceFilePaths": [
+      "./phase_2/test_res/Resource3.txt"
+    ]
+  },
+  "SuperpeerRoutingTable": [],
+  "GroupRoutingTable": []
+}

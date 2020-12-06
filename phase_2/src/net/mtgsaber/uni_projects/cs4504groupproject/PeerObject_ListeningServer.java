@@ -29,11 +29,13 @@ public class PeerObject_ListeningServer implements Runnable {
                 Socket sock;
                 try {
                     sock = serverSocket.accept();
+                    sock.setSoTimeout(0);
                 } catch (SocketTimeoutException timeoutException) {
                     if (running) continue;
                     else break;
                 }
 
+                Logging.log(Level.INFO, "Connected to \"" + sock.getRemoteSocketAddress().toString() + "\".");
                 CLIENT.accept(new IncomingConnectionEvent(sock)); // dispatch event to this client's PeerObject
             }
         } catch (IOException e) {

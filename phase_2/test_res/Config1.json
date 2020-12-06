@@ -18,18 +18,22 @@
   "RoutingCacheEntryLifespan": 600000,
   "ResourceRegistry": {
     "ResourceNames": [
-      "Res1",
-      "Res2",
-      "Res3"
+      "Res1"
     ],
     "ResourceFilePaths": [
-      "./phase_2/test_res/Resource1.txt",
-      "./phase_2/test_res/Resource2.txt",
-      "./phase_2/test_res/Resource3.txt"
+      "./phase_2/test_res/Resource1.txt"
     ]
   },
   "SuperpeerRoutingTable": [],
   "GroupRoutingTable": [
+    {
+	  "NAME": "Peer1",
+	  "IP_ADDRESS": "127.0.0.1",
+	  "GROUP": "Group1",
+	  "IS_SUPER_PEER": true,
+	  "HANDSHAKE_PORT": 65000,
+	  "CREATION_TIME": 1607047988635
+    },
     {
       "NAME": "Peer2",
       "IP_ADDRESS": "127.0.0.1",
@@ -44,22 +48,6 @@
       "GROUP": "Group1",
       "IS_SUPER_PEER": false,
       "HANDSHAKE_PORT": 65020,
-      "CREATION_TIME": 1607047988635
-    },
-    {
-      "NAME": "Peer4",
-      "IP_ADDRESS": "127.0.0.1",
-      "GROUP": "Group1",
-      "IS_SUPER_PEER": false,
-      "HANDSHAKE_PORT": 65030,
-      "CREATION_TIME": 1607047988635
-    },
-    {
-      "NAME": "Peer5",
-      "IP_ADDRESS": "127.0.0.1",
-      "GROUP": "Group1",
-      "IS_SUPER_PEER": false,
-      "HANDSHAKE_PORT": 65040,
       "CREATION_TIME": 1607047988635
     }
   ]

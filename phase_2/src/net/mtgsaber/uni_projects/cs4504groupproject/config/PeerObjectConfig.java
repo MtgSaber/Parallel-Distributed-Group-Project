@@ -19,11 +19,12 @@ public final class PeerObjectConfig {
     private final Map<String, File> RES_TABLE = new HashMap<>();
     private final Set<File> REGISTERED_FILES = new HashSet<>();
     private final Map<String, PeerRoutingData> PEERS = new HashMap<>();
+    private final Map<String, PeerRoutingData> SUPERPEERS = new HashMap<>();
     private final File CONFIG_FILE;
+
     public final long PEER_CACHE_TIME_LIMIT;
     public final PeerRoutingData LOCAL_SUPER_PEER;
     public final PeerRoutingData SELF;
-    // TODO: add a map for fellow superpeers.
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -66,8 +67,8 @@ public final class PeerObjectConfig {
         for (PeerRoutingData peerRoutingData : json.SUPER_PEERS) {
             if (SELF.IS_SUPER_PEER) peerRoutingData.makePermanent();
             addPeer(peerRoutingData);
+            SUPERPEERS.put(peerRoutingData.GROUP + "." + peerRoutingData.NAME, peerRoutingData);
         }
-        // TODO: register superpeers to separate map. see TODO comment in fields region above.
 
         saveToFile();
     }
@@ -115,7 +116,7 @@ public final class PeerObjectConfig {
             return false;
 
         synchronized (PEERS) {
-            PEERS.put(peerRoutingData.NAME, peerRoutingData);
+            PEERS.put(peerRoutingData.GROUP + "." + peerRoutingData.NAME, peerRoutingData);
         }
         return true;
     }
@@ -125,9 +126,10 @@ public final class PeerObjectConfig {
      * @param name the name of the requested peer.
      * @return the routing data for the given peer if it is cached (and non-expired) or registered in the routing table, null otherwise.
      */
-    public PeerRoutingData getPeer(String name) {
+    public PeerRoutingData getPeer(String group, String name) {
+        if (name == null) return null;
         synchronized (PEERS) {
-            PeerRoutingData peerRoutingData = PEERS.get(name);
+            PeerRoutingData peerRoutingData = PEERS.get(group + "." + name);
 
             if (peerRoutingData == null) return null;
 
@@ -147,9 +149,11 @@ public final class PeerObjectConfig {
      * @return the routing data of the superpeer of the given group if it is registered in this config, null otherwise.
      */
     public PeerRoutingData getSuperPeer(String groupName) {
-        if (!SELF.IS_SUPER_PEER) return null; // if this is not a superpeer just use this.LOCAL_SUPER_PEER
+        if (!SELF.IS_SUPER_PEER || groupName == null) return null; // if this is not a superpeer just use this.LOCAL_SUPER_PEER
 
-        return null; //TODO: implement
+        synchronized (SUPERPEERS) {
+            return SUPERPEERS.get(groupName);
+        }
     }
 
     public File getResource(String name) {

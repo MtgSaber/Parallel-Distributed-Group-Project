@@ -8,8 +8,11 @@ import net.mtgsaber.lib.events.EventManager;
 import net.mtgsaber.uni_projects.cs4504groupproject.config.PeerObjectConfig;
 import net.mtgsaber.uni_projects.cs4504groupproject.events.*;
 import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.Ack;
+import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.client.ConnectionRequest;
 import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.client.ResourceRequest;
+import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.client.RoutingRequest;
 import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.server.ResourceResponse;
+import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.server.RoutingResponse;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Container;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.SocketAction;
@@ -162,7 +165,6 @@ public class PeerObject implements Consumer<Event> {
             LISTENING_SERVER.shutdown(SERVER_THREAD);
             Utils.joinThreadForShutdown(SERVER_THREAD);
             PEER_EVENT_MANAGER.shutdown();
-            Utils.joinThreadForShutdown(PEER_EVENT_MANAGER_THREAD);
             CONFIG.saveToFile();
             synchronized (STATE) {
                 STATE.set(PeerObjectLifecycleStates.TERMINATED);
@@ -256,7 +258,7 @@ public class PeerObject implements Consumer<Event> {
 
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SERVER BEHAVIORS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ SERVER BEHAVIORS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
     /**
      * This is the initial socket action for any and all incoming connections.
@@ -264,28 +266,42 @@ public class PeerObject implements Consumer<Event> {
      * @param sock Should be a newly accepted socket.
      */
     private void actionAcceptConnection(Socket sock) {
+        Logging.log(Level.INFO, "Accepted connection from " + sock.getRemoteSocketAddress().toString() + ".");
+        Logging.log(Level.INFO, "Opening reader and writer on the socket...");
         try ( // these are text-based and can be used to transfer string messages. I (Andrew) prefer to transfer class serializations by using NET_GSON.
-                BufferedWriter sockTextWriter = new BufferedWriter(new OutputStreamWriter(sock.getOutputStream()));
+                PrintWriter sockTextWriter = new PrintWriter(sock.getOutputStream(), true);
                 BufferedReader sockTextReader = new BufferedReader(new InputStreamReader(sock.getInputStream()));
         ) {
-            // TODO: use the socket to determine what kind of request this is.
+            Logging.log(Level.INFO, "Successfully opened reader and writer on the socket.");
+            Logging.log(Level.INFO, "Awaiting service request...");
+            // use the socket to determine what kind of request this is.
+            ConnectionRequest connectionRequest = NET_GSON.fromJson(sockTextReader.readLine(), ConnectionRequest.class);
+            Logging.log(Level.INFO, "Service request received: " + LOG_GSON.toJson(connectionRequest, ConnectionRequest.class));
 
-            if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
+            if (connectionRequest.SERVICE.equals(ConnectionRequest.Services.RESOURCE_REQUEST)) {
+                Logging.log(Level.INFO, "Service is resource request, sending ack...");
+                sockTextWriter.println(NET_GSON.toJson(new Ack(true), Ack.class));
+                Logging.log(Level.INFO, "Ack sent, calling uploadFile()...");
                 uploadFile(sock, sockTextReader, sockTextWriter);
-            } else if (true) { // TODO: replace with legitimate condition. This is just an example of what to do once the type of request has been determined.
+            } else if (connectionRequest.SERVICE.equals(ConnectionRequest.Services.ROUTING_REQUEST)) {
+                Logging.log(Level.INFO, "Service is routing request, sending ack...");
+                sockTextWriter.println(NET_GSON.toJson(new Ack(true), Ack.class));
+                Logging.log(Level.INFO, "Ack sent, calling processRoutingRequest()...");
                 processRoutingRequest(sock, sockTextReader, sockTextWriter);
             }
-
-            // TODO: let remote peer know that this peer is done communicating.
         } catch (IOException ioex) {
-            // TODO: handle the exception
+            // handle the exception
+            Logging.log(Level.SEVERE, "Error Occured while attepting a connection request.");
         }
 
         // close down the socket
         try {
+            Logging.log(Level.INFO, "Closing socket to \"" + sock.getRemoteSocketAddress().toString() + "\"...");
             sock.close();
+            Logging.log(Level.INFO, "Socket closed.");
         } catch (IOException ioex) {
-            //TODO: handle exception
+            // handle exception
+            Logging.log(Level.SEVERE, "Error occurred while attempting to close down the socket.");
         }
     }
 
@@ -297,45 +313,54 @@ public class PeerObject implements Consumer<Event> {
      * @param sockTextReader a text-based reader on the socket. used to read JSON serializations from the remote client.
      * @param sockTextWriter a text-based writer on the socket. used to write JSON serializations to the remote client.
      */
-    private void uploadFile(Socket socket, BufferedReader sockTextReader, BufferedWriter sockTextWriter) {
-        // TODO: upload file to remote peer
+    private void uploadFile(Socket socket, BufferedReader sockTextReader, PrintWriter sockTextWriter) {
+        // upload file to remote peer
         try {
             // read the request message from the remote client
-            ResourceRequest request = NET_GSON.fromJson(sockTextReader, ResourceRequest.class);
+            ResourceRequest request = NET_GSON.fromJson(sockTextReader.readLine(), ResourceRequest.class);
             Logging.log(Level.INFO, "Received ResourceRequest message from remote client: " + LOG_GSON.toJson(request, ResourceRequest.class));
 
             // request the file from the resource registry defined by the config file
             File resource = CONFIG.getResource(request.RESOURCE_NAME);
             // if the file is not registered,
             if (resource == null) {
+                Logging.log(Level.INFO, "Resource not found, sending resource response...");
                 // reply to the remote client that the resource isn't being shared by this peer.
-                sockTextWriter.append(
+                sockTextWriter.println(
                         NET_GSON.toJson(new ResourceResponse(false, -1), ResourceResponse.class)
                 );
-                Logging.log(Level.INFO, "Rejecting resource request for non-shared resource \"" + request.RESOURCE_NAME + "\".");
+                Logging.log(Level.INFO, "Rejected resource request for non-shared resource \"" + request.RESOURCE_NAME + "\".");
 
             // otherwise it is registered. begin transfer procedure.
             } else {
+                Logging.log(Level.INFO, "Resource found, responding with size to remote peer...");
                 // reply to the remote client that their request has been accepted and give them the file size
-                sockTextWriter.append(
+                sockTextWriter.println(
                         NET_GSON.toJson(new ResourceResponse(true, resource.length()), ResourceResponse.class)
                 );
+                Logging.log(Level.INFO, "Response sent, awaiting Ack...");
 
                 // wait for the client to confirm that it is ready to begin the transfer
-                Ack ack = NET_GSON.fromJson(sockTextReader, Ack.class);
+                Ack ack = NET_GSON.fromJson(sockTextReader.readLine(), Ack.class);
+                Logging.log(Level.INFO, "Ack received: " + LOG_GSON.toJson(ack, Ack.class));
 
                 // if the client is ready,
                 if (ack.IS_ACKNOWLEDGED) {
+                    Logging.log(Level.INFO, "Client is ready, opening transfer resource...");
                     // safely open an input stream on the file
-                    try (FileInputStream fileInput = new FileInputStream(resource)) {
-                        // we need a different kind of stream for byte transfers. sockTextReader & sockTextWriter are for text-based communications (i.e. JSON)
-                        OutputStream outBytesStream = socket.getOutputStream();
+                    try (
+                            FileInputStream fileInput = new FileInputStream(resource);
+                            // we need a different kind of stream for byte transfers. sockTextReader & sockTextWriter are for text-based communications (i.e. JSON)
+                            OutputStream outBytesStream = socket.getOutputStream()
+                    ) {
                         Logging.log(Level.INFO, "Beginning non-encrypted transfer of file \"" + resource.getName() + "\"");
-        /* ~~~~~~~~~~~~ gotten from https://stackoverflow.com/questions/9520911/java-sending-and-receiving-file-byte-over-sockets ~~~~~~~~~~~~~~~~ */
+        /* ~~~~~~~~~~~~ gotten (and modified) from https://stackoverflow.com/questions/9520911/java-sending-and-receiving-file-byte-over-sockets ~~~~~~~~~~~~~~~~ */
                         int count;
-                        byte[] buffer = new byte[8192]; // or 4096, or more
-                        while ((count = fileInput.read(buffer)) > 0)
+                        byte[] buffer = new byte[4096]; // or 4096, or more
+                        while ((count = fileInput.read(buffer)) > 0) {
                             outBytesStream.write(buffer, 0, count);
+                            outBytesStream.flush();
+                        }
         /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
                     } catch (FileNotFoundException fnfex) {
                         // log the error
@@ -357,19 +382,30 @@ public class PeerObject implements Consumer<Event> {
      * This method uses the socket to communicate this superpeer's response to a routing table lookup request.
      * The socket has already been used to decide which action to call, and this is the action to call.
      */
-    private void processRoutingRequest(Socket socket, BufferedReader sockTextReader, BufferedWriter sockTextWriter) {
-        PeerRoutingData routingData = CONFIG.getPeer("INSERT REQUESTED PEER NAME HERE");
-        if (routingData != null) {
-            // TODO: give the routing data to the requesting peer.
-        } else {
-            // this could block for a little bit, so make sure the socket doesn't close. whatever that entails.
-            routingData = issueRoutingRequest("INSERT REQUESTED PEER NAME HERE", "INSERT REQUESTED PEER GROUP HERE");
-            if (routingData != null) {
-                // TODO: respond through this new socket to the routing request that was received
-            } else {
-                // TODO: the data cannot be found. respond accordingly.
+    private void processRoutingRequest(Socket socket, BufferedReader sockTextReader, PrintWriter sockTextWriter) {
+        try {
+            RoutingRequest request = NET_GSON.fromJson(sockTextReader.readLine(), RoutingRequest.class);
+            PeerRoutingData routingData = CONFIG.getPeer(request.TARGET_PEER_GROUP, request.TARGET_PEER_NAME);
+            if (routingData == null) {
+                // this could block for a little bit, so make sure the socket doesn't close. whatever that entails.
+                routingData = issueRoutingRequest(request.TARGET_PEER_NAME, request.TARGET_PEER_GROUP);
+                if (routingData == null) {
+                    // the data cannot be found. respond accordingly.
+                    sockTextWriter.println(NET_GSON.toJson(new RoutingResponse(null), RoutingResponse.class));
+
+                    return;
+                }
             }
+
+            // give the routing data to the requesting peer.
+            sockTextWriter.println(NET_GSON.toJson(new RoutingResponse(routingData), RoutingResponse.class));
+        } catch (IOException ioex) {
+            Logging.log(Level.WARNING, "Error while reading from socket connected to: " + socket.getRemoteSocketAddress().toString() + "!");
         }
+
+
+
+
     }
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -387,6 +423,21 @@ public class PeerObject implements Consumer<Event> {
         Thread socketThread = new Thread(
                 () -> {
                     try (Socket socket = new Socket(remoteAddress, remotePort, null, 0)) {
+                        Object sleepObject = new Object();
+                        int retryCount = 0, retryLimit = 10000;
+                        while (!socket.isConnected() && retryCount < retryLimit) {
+                            if (retryCount == 0) Logging.log(Level.INFO, "Not connected yet, begin waiting...");
+                            try {
+                                synchronized (sleepObject) {
+                                    sleepObject.wait(1);
+                                    retryCount++;
+                                }
+                            } catch (InterruptedException ioex) {
+                                Logging.log(Level.WARNING, "Interrupted while waiting for socket to connect to " + socket.getRemoteSocketAddress().toString() + "!");
+                            }
+                        }
+                        Logging.log(Level.INFO, "Done waiting on connection, using socket now...");
+
                         action.useSocket(socket);
 
                         synchronized (SOCKET_THREAD_SET) {
@@ -398,6 +449,9 @@ public class PeerObject implements Consumer<Event> {
                 },
                 CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME + "_SocketThread_remoteAddress=\"" + remoteAddress + "\"_port=" + remotePort
         );
+        synchronized (SOCKET_THREAD_SET) {
+            SOCKET_THREAD_SET.add(socketThread);
+        }
         socketThread.start();
     }
 
@@ -413,36 +467,73 @@ public class PeerObject implements Consumer<Event> {
      *      If it isn't cached, it forwards the request to this peer's local superpeer.
      *
      * This is used by the performDownload() and processRoutingRequest() methods.
-     * @param remoteClientName the name of the peer whose routing data we are requesting
-     * @param remoteClientGroup the name of the group that the target peer is a member of
+     * @param targetPeerName the name of the peer whose routing data we are requesting
+     * @param targerPeerGroup the name of the group that the target peer is a member of
      * @return the PeerRoutingData of the target peer, null if it could not be found.
      */
-    private PeerRoutingData issueRoutingRequest(String remoteClientName, String remoteClientGroup) {
-        PeerRoutingData peerRoutingData = CONFIG.getPeer(remoteClientName);
+    private PeerRoutingData issueRoutingRequest(String targetPeerName, String targerPeerGroup) {
+        // try the cache/routing table first
+        Logging.log(Level.INFO, "Attempting to find peer " + targerPeerGroup + "." + targetPeerName + " in cache/table...");
+        PeerRoutingData peerRoutingData = CONFIG.getPeer(targerPeerGroup, targetPeerName);
+
+        // if it wasn't in the cache/routing table,
         if (peerRoutingData == null) {
+            // we need the routing data for the superpeer we need to contact
             PeerRoutingData superPeerRoutingData;
             if (CONFIG.SELF.IS_SUPER_PEER) {
-                superPeerRoutingData = CONFIG.getSuperPeer(remoteClientGroup);
-                if (superPeerRoutingData == null) return null;
+                Logging.log(Level.INFO, "Attempting to locate superpeer for group " + targerPeerGroup + "...");
+                superPeerRoutingData = CONFIG.getSuperPeer(targerPeerGroup); // we should have the routing data for the correct superpeer
+                if (superPeerRoutingData == null) {
+                    Logging.log(Level.INFO, "Failed to locate superpeer for group " + targerPeerGroup + "...");
+                    return null; // if we don't then we can't get the target peer's routing data.
+                }
             } else {
-                superPeerRoutingData = CONFIG.LOCAL_SUPER_PEER;
+                Logging.log(Level.INFO, "Using local superpeer routing data.");
+                superPeerRoutingData = CONFIG.LOCAL_SUPER_PEER; // if we're not a superpeer then we just need to send the request to our group's superpeer
             }
 
             Container<PeerRoutingData> routingResponse = new Container<>(null); // used to save the routingResponse from the thread socket net coode
             Container<Thread> socketThreadContainer = new Container<>(null); // used to find the thread that was created for the routing request socket, and is also used as a synchronization lock.
+            Logging.log(Level.INFO, "Calling openSocket() for routing request...");
             openSocket(superPeerRoutingData.IP_ADDRESS, superPeerRoutingData.HANDSHAKE_PORT, socket -> {
+                Logging.log(Level.INFO, "Started socket thread for issueRoutingRequest().");
+                // let the thread calling issueRoutingRequest() know what thread was created so it can block until we're finished here.
                 socketThreadContainer.set(Thread.currentThread());
+                // wake up the calling thread so they can join this one until we're done.
                 synchronized (socketThreadContainer) {
                     socketThreadContainer.notify();
                 }
-                /* ~~~~~~~~~~~~~~~~~~~ This is the actual net code for performing the routing table lookup request ~~~~~~~~~~~~~~~~~~~~~~ */
-                // TODO: use the socket to make the request and get the routingResponse
-                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-                BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            /* ~~~~~~~~~~~~~~~~~~~ This is the actual net code for performing the routing table lookup request ~~~~~~~~~~~~~~~~~~~~~~ */
 
-                // NOTE: if there was some sort of error, and proper peer routing data is not received, pass null to routingResponse.set() instead of the line below.
-                routingResponse.set(new PeerRoutingData("", "", "", false, -1)); // TODO: store routing request responses into here.
-                /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+                Logging.log(Level.INFO, "Worker thread has been notified to join this socket thread, beginning download...");
+                try ( // open up text based flows for JSON object transfers
+                        PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))
+                ) {
+                    Logging.log(Level.INFO, "Successfully opened reader and writer on the socket");
+                    Logging.log(Level.INFO, "Sending connection request...");
+                    // send an initial connection request with our desired service.
+                    writer.println(NET_GSON.toJson(new ConnectionRequest(superPeerRoutingData, ConnectionRequest.Services.ROUTING_REQUEST), ConnectionRequest.class));
+                    // wait for server to respond.
+                    Logging.log(Level.INFO, "Awaiting Ack...");
+                    Ack connectionAck = NET_GSON.fromJson(reader.readLine(), Ack.class);
+                    Logging.log(Level.INFO, "Ack received.");
+                    if (connectionAck.IS_ACKNOWLEDGED) {
+                        Logging.log(Level.INFO, "Request accepted, sending Routing request...");
+                        // superpeer has accepted our connection and is ready for our request
+                        writer.println(NET_GSON.toJson(new RoutingRequest(targetPeerName, targerPeerGroup), RoutingRequest.class));
+                        Logging.log(Level.INFO, "Routing request sent.");
+                        Logging.log(Level.INFO, "Awaiting Routing response...");
+                        // NOTE: usually you don't want to hold an objects monitor until you have the data you need to use its behaviors, but it's okay here since the only other thread that uses it should be joined onto this thread.
+                        synchronized (routingResponse) {
+                            routingResponse.set(NET_GSON.fromJson(reader.readLine(), RoutingResponse.class).ROUTING_DATA);
+                            Logging.log(Level.INFO, "Routing response received: " + LOG_GSON.toJson(routingResponse.get(), PeerRoutingData.class));
+                        }
+                    } else {
+                        Logging.log(Level.INFO, "Connection refused by remote superpeer " + superPeerRoutingData.GROUP + "." + superPeerRoutingData.NAME);
+                    }
+                }
+            /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
             });
 
 
@@ -450,7 +541,10 @@ public class PeerObject implements Consumer<Event> {
             try {
                 // wait for the socket thread to tell us what the allocated port was
                 synchronized (socketThreadContainer) {
-                    socketThreadContainer.wait(); //TODO: decide on a time limit (Andrew)
+                    Logging.log(Level.INFO, "Waiting for socket thread to be created...");
+                    socketThreadContainer.wait(1000); //TODO: decide on a time limit (Andrew)
+                    Logging.log(Level.INFO, "No longer waiting on socket thread.");
+                    throw new InterruptedException();
                 }
             } catch (InterruptedException iex) {
                 if (socketThreadContainer.get() == null) { // something happened outside of what is expected of this method
@@ -458,9 +552,14 @@ public class PeerObject implements Consumer<Event> {
                     return null;
                 } else {
                     try {
-                        // we needed to get the port number from the socket thread to know which thread we need to join to wait for the routingResponse
-                        socketThreadContainer.get().join(); //TODO: decide on a time limit (Andrew)
+                        synchronized (socketThreadContainer) {
+                            Logging.log(Level.INFO, "Joining socket thread \"" + socketThreadContainer.get());
+                            // we needed to get the port number from the socket thread to know which thread we need to join to wait for the routingResponse
+                            socketThreadContainer.get().join(10000); //TODO: decide on a time limit (Andrew)
+                            Logging.log(Level.INFO, "No longer waiting on socket thread to terminate.");
+                        }
                         if (routingResponse.get() == null) {
+                            Logging.log(Level.INFO, "No routing data was found.");
                             return null;
                         }
                         peerRoutingData = routingResponse.get(); // this should be the routingResponse from the remote superpeer, as set in the openSocket() lambda block
@@ -473,7 +572,11 @@ public class PeerObject implements Consumer<Event> {
             }
         /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
         }
-        if (peerRoutingData != null) CONFIG.addPeer(peerRoutingData);
+        if (peerRoutingData != null) {
+            Logging.log(Level.INFO, "Caching peer data: " + LOG_GSON.toJson(peerRoutingData, PeerRoutingData.class));
+            CONFIG.addPeer(peerRoutingData);
+        }
+        Logging.log(Level.INFO, "Returning peerRoutingData=" + LOG_GSON.toJson(peerRoutingData, PeerRoutingData.class));
         return peerRoutingData;
     }
 
@@ -487,14 +590,82 @@ public class PeerObject implements Consumer<Event> {
                 () -> { // issueRoutingRequest is blocking, so it's best to keep it separate from the rest of what this peer needs to do.
                         PeerRoutingData targetPeerRoutingData = issueRoutingRequest(e.REMOTE_PEER_NAME, e.REMOTE_PEER_GROUP);
                         if (targetPeerRoutingData == null) {
-                            // TODO: report the failed attempt
                             Logging.log(Level.SEVERE, "Cannot perform download, peer routing information is null.");
+                        } else {
+                            openSocket(targetPeerRoutingData.IP_ADDRESS, targetPeerRoutingData.HANDSHAKE_PORT,
+                                    socket -> {
+                                        Logging.log(Level.INFO, "Opening reader and writer for socket...");
+                                        try ( // open up text based flows for JSON object transfers
+                                              PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
+                                              BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))
+                                        ) {
+                                            Logging.log(Level.INFO, "Opened resource, sending connection request...");
+                                            // send an initial connection request with our desired service.
+                                            writer.println(
+                                                    NET_GSON.toJson(
+                                                            new ConnectionRequest(
+                                                                    targetPeerRoutingData,
+                                                                    ConnectionRequest.Services.RESOURCE_REQUEST
+                                                            ),
+                                                            ConnectionRequest.class
+                                                    )
+                                            );
+                                            Logging.log(Level.INFO, "Request sent, awaiting ack...");
+                                            // wait for server to respond.
+                                            Ack connectionAck = NET_GSON.fromJson(reader.readLine(), Ack.class);
+                                            Logging.log(Level.INFO, "Ack received: " + LOG_GSON.toJson(connectionAck, Ack.class));
+                                            if (connectionAck.IS_ACKNOWLEDGED) {
+                                                Logging.log(Level.INFO, "Sending resource request...");
+                                                // superpeer has accepted our connection and is ready for our request
+                                                writer.println(NET_GSON.toJson(new ResourceRequest(e.REMOTE_RESOURCE), ResourceRequest.class));
+                                                Logging.log(Level.INFO, "request sent, awaiting response...");
+                                                ResourceResponse response = NET_GSON.fromJson(reader.readLine(), ResourceResponse.class);
+                                                Logging.log(Level.INFO, "response received: " + LOG_GSON.toJson(response, ResourceResponse.class));
+
+                                                Logging.log(Level.INFO, "Sending ack...");
+                                                // let server know that we're ready. ideally we would check if we have space, but due to time restrictions, we'll just have to download it anyway.
+                                                writer.println(NET_GSON.toJson(new Ack(true), Ack.class));
+                                                Logging.log(Level.INFO, "Ack sent.");
+
+                                                Logging.log(Level.INFO, "Creating file..");
+                                                // NOTE: there are more elegant solutions to downloading files, but due to time restrictions this will have to do.
+                                                if (e.LOCAL_FILE_DESTINATION.createNewFile()) { // create the destination file
+                                                    Logging.log(Level.INFO, "File created. Opening transfer resource...");
+                                                    try (
+                                                            // open an stream to write to this file
+                                                            FileOutputStream fos = new FileOutputStream(e.LOCAL_FILE_DESTINATION);
+                                                            // get a binary stream to read from the socket. local var reader is for text communications, not bytes
+                                                            InputStream socketByteInput = socket.getInputStream()
+                                                    ) {
+                                                        Logging.log(Level.INFO, "Transfer resource opened, beginning transfer...");
+                                                    /* ~~~ gotten from https://stackoverflow.com/questions/9520911/java-sending-and-receiving-file-byte-over-sockets ~~~ */
+                                                        int count;
+                                                        byte[] buffer = new byte[4096];
+                                                        while ((count = socketByteInput.read(buffer)) > 0) {
+                                                            fos.write(buffer, 0, count);
+                                                            fos.flush();
+                                                        }
+                                                    /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+
+                                                        Logging.log(Level.INFO, "Done writing to file.");
+                                                    } catch (IOException ioex) {
+                                                        Logging.log(
+                                                                Level.SEVERE,
+                                                                "Error while downloading resource \"" + e.REMOTE_RESOURCE + "\" from remote peer "
+                                                                        + e.REMOTE_PEER_GROUP + "." + e.REMOTE_PEER_NAME + " to local file \""
+                                                                        + e.LOCAL_FILE_DESTINATION.getName() + "\"."
+                                                        );
+                                                    }
+                                                } else {
+                                                    Logging.log(Level.SEVERE, "Could not create local file \"" + e.LOCAL_FILE_DESTINATION.getName() + "\".");
+                                                }
+                                            } else {
+                                                Logging.log(Level.INFO, "Connection refused by remote peer " + targetPeerRoutingData.GROUP + "." + targetPeerRoutingData.NAME);
+                                            }
+                                        }
+                                    }
+                            );
                         }
-                        openSocket(targetPeerRoutingData.IP_ADDRESS, targetPeerRoutingData.HANDSHAKE_PORT,
-                                socket -> {
-                                        // TODO: use socket and the information from e to perform the download.
-                                }
-                        );
                         synchronized (WORKER_THREAD_SET) {
                             WORKER_THREAD_SET.remove(Thread.currentThread());
                         }
