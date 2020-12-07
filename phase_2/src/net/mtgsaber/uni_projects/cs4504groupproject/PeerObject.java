@@ -266,43 +266,56 @@ public class PeerObject implements Consumer<Event> {
      * @param sock Should be a newly accepted socket.
      */
     private void actionAcceptConnection(Socket sock) {
-        Logging.log(Level.INFO, "Accepted connection from " + sock.getRemoteSocketAddress().toString() + ".");
-        Logging.log(Level.INFO, "Opening reader and writer on the socket...");
-        try ( // these are text-based and can be used to transfer string messages. I (Andrew) prefer to transfer class serializations by using NET_GSON.
-                PrintWriter sockTextWriter = new PrintWriter(sock.getOutputStream(), true);
-                BufferedReader sockTextReader = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-        ) {
-            Logging.log(Level.INFO, "Successfully opened reader and writer on the socket.");
-            Logging.log(Level.INFO, "Awaiting service request...");
-            // use the socket to determine what kind of request this is.
-            ConnectionRequest connectionRequest = NET_GSON.fromJson(sockTextReader.readLine(), ConnectionRequest.class);
-            Logging.log(Level.INFO, "Service request received: " + LOG_GSON.toJson(connectionRequest, ConnectionRequest.class));
+        Thread socketThread = new Thread(
+                () -> {
+                    Logging.log(Level.INFO, "Accepted connection from " + sock.getRemoteSocketAddress().toString() + ".");
+                    Logging.log(Level.INFO, "Opening reader and writer on the socket...");
+                    try ( // these are text-based and can be used to transfer string messages. I (Andrew) prefer to transfer class serializations by using NET_GSON.
+                          PrintWriter sockTextWriter = new PrintWriter(sock.getOutputStream(), true);
+                          BufferedReader sockTextReader = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+                    ) {
+                        Logging.log(Level.INFO, "Successfully opened reader and writer on the socket.");
+                        Logging.log(Level.INFO, "Awaiting service request...");
+                        // use the socket to determine what kind of request this is.
+                        ConnectionRequest connectionRequest = NET_GSON.fromJson(sockTextReader.readLine(), ConnectionRequest.class);
+                        Logging.log(Level.INFO, "Service request received: " + LOG_GSON.toJson(connectionRequest, ConnectionRequest.class));
 
-            if (connectionRequest.SERVICE.equals(ConnectionRequest.Services.RESOURCE_REQUEST)) {
-                Logging.log(Level.INFO, "Service is resource request, sending ack...");
-                sockTextWriter.println(NET_GSON.toJson(new Ack(true), Ack.class));
-                Logging.log(Level.INFO, "Ack sent, calling uploadFile()...");
-                uploadFile(sock, sockTextReader, sockTextWriter);
-            } else if (connectionRequest.SERVICE.equals(ConnectionRequest.Services.ROUTING_REQUEST)) {
-                Logging.log(Level.INFO, "Service is routing request, sending ack...");
-                sockTextWriter.println(NET_GSON.toJson(new Ack(true), Ack.class));
-                Logging.log(Level.INFO, "Ack sent, calling processRoutingRequest()...");
-                processRoutingRequest(sock, sockTextReader, sockTextWriter);
-            }
-        } catch (IOException ioex) {
-            // handle the exception
-            Logging.log(Level.SEVERE, "Error Occured while attepting a connection request.");
-        }
+                        if (connectionRequest.SERVICE.equals(ConnectionRequest.Services.RESOURCE_REQUEST)) {
+                            Logging.log(Level.INFO, "Service is resource request, sending ack...");
+                            sockTextWriter.println(NET_GSON.toJson(new Ack(true), Ack.class));
+                            Logging.log(Level.INFO, "Ack sent, calling uploadFile()...");
+                            uploadFile(sock, sockTextReader, sockTextWriter);
+                        } else if (connectionRequest.SERVICE.equals(ConnectionRequest.Services.ROUTING_REQUEST)) {
+                            Logging.log(Level.INFO, "Service is routing request, sending ack...");
+                            sockTextWriter.println(NET_GSON.toJson(new Ack(true), Ack.class));
+                            Logging.log(Level.INFO, "Ack sent, calling processRoutingRequest()...");
+                            processRoutingRequest(sock, sockTextReader, sockTextWriter);
+                        }
+                    } catch (IOException ioex) {
+                        // handle the exception
+                        Logging.log(Level.SEVERE, "Error Occured while attepting a connection request.");
+                    }
 
-        // close down the socket
-        try {
-            Logging.log(Level.INFO, "Closing socket to \"" + sock.getRemoteSocketAddress().toString() + "\"...");
-            sock.close();
-            Logging.log(Level.INFO, "Socket closed.");
-        } catch (IOException ioex) {
-            // handle exception
-            Logging.log(Level.SEVERE, "Error occurred while attempting to close down the socket.");
+                    // close down the socket
+                    try {
+                        Logging.log(Level.INFO, "Closing socket to \"" + sock.getRemoteSocketAddress().toString() + "\"...");
+                        sock.close();
+                        Logging.log(Level.INFO, "Socket closed.");
+                    } catch (IOException ioex) {
+                        // handle exception
+                        Logging.log(Level.SEVERE, "Error occurred while attempting to close down the socket.");
+                    } finally {
+                        synchronized (SOCKET_THREAD_SET) {
+                            SOCKET_THREAD_SET.remove(Thread.currentThread());
+                        }
+                    }
+                },
+                CONFIG.SELF.GROUP + "." + CONFIG.SELF.NAME + "_Server_SocketThread_socketAddress=\"" + sock.getRemoteSocketAddress().toString() + "\""
+        );
+        synchronized (SOCKET_THREAD_SET) {
+            SOCKET_THREAD_SET.add(socketThread);
         }
+        socketThread.start();
     }
 
     /**
@@ -361,7 +374,7 @@ public class PeerObject implements Consumer<Event> {
                             outBytesStream.write(buffer, 0, count);
                             outBytesStream.flush();
                         }
-        /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+        /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
                     } catch (FileNotFoundException fnfex) {
                         // log the error
                         Logging.log(
@@ -402,10 +415,6 @@ public class PeerObject implements Consumer<Event> {
         } catch (IOException ioex) {
             Logging.log(Level.WARNING, "Error while reading from socket connected to: " + socket.getRemoteSocketAddress().toString() + "!");
         }
-
-
-
-
     }
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -630,7 +639,7 @@ public class PeerObject implements Consumer<Event> {
                                                 Logging.log(Level.INFO, "Creating file..");
                                                 // NOTE: there are more elegant solutions to downloading files, but due to time restrictions this will have to do.
                                                 if (e.LOCAL_FILE_DESTINATION.createNewFile()) { // create the destination file
-                                                    Logging.log(Level.INFO, "File created. Opening transfer resource...");
+                                                    Logging.log(Level.INFO, "File created. Opening transfer resources...");
                                                     try (
                                                             // open an stream to write to this file
                                                             FileOutputStream fos = new FileOutputStream(e.LOCAL_FILE_DESTINATION);

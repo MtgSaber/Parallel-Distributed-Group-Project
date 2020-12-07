@@ -13,9 +13,11 @@ import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Utils;
 
 // Java libraries
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+import java.io.*;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -23,47 +25,56 @@ import java.util.logging.Level;
 
 public class Main {
     public static void main(String[] args) {
-        Logging.start(System.err, true);
-        Scanner scan = getInputScanner(args);
-        // initialization
+        File logFile = new File("./phase_2/test_res/logs/TestingLog_[" + ZonedDateTime.ofInstant(Instant.now(), ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH.mm.ss.SSS")) + "].log");
+        try {
+            if (!logFile.createNewFile()) {
+                throw new IOException();
+            }
+        } catch (IOException ioex) {
+            System.err.println("Error while creating new log file: \"" + logFile.getName() + "\": " + ioex.getMessage());
+            return;
+        }
+        try(PrintStream filePrintWriter = new PrintStream(logFile)) {
+            Logging.start(filePrintWriter, true);
+            Scanner scan = getInputScanner(args);
+            // initialization
 
-        //variables
-        String remote_client = "default";
-        String local_client = "default";
-        String remote_group = "default";
-        String target_resource = "default";
-        String path_name = "default";
+            //variables
+            String remote_client = "default";
+            String local_client = "default";
+            String remote_group = "default";
+            String target_resource = "default";
+            String path_name = "default";
 
-        int exit_option = -1;
+            int exit_option = -1;
 
-        // create map between P2PClient objects and their hosts
-        final Map<String, PeerObject> p2pClientSpace = new HashMap<>();
+            // create map between P2PClient objects and their hosts
+            final Map<String, PeerObject> p2pClientSpace = new HashMap<>();
 
-        // set up event and thread managers
-        final AsynchronousEventManager eventManager = new AsynchronousEventManager();
-        final Thread eventManagerThread = new Thread(eventManager, "Main_EventManagerThread");
-        eventManagerThread.start(); // start thread manager
+            // set up event and thread managers
+            final AsynchronousEventManager eventManager = new AsynchronousEventManager();
+            final Thread eventManagerThread = new Thread(eventManager, "Main_EventManagerThread");
+            eventManagerThread.start(); // start thread manager
 
         /* this is already done in a helper method
         try {
             Logging.start(new FileOutputStream(args[0]), true); // log file access attempt
         } catch (FileNotFoundException e) {
-            //TODO: handle the exception
 //            Logging.start(e.toString(), true); // log exception
             System.out.println("File not found: " + e.toString());
         }
 
          */
 
-        //UI creation
-        // create this client
+            //UI creation
+            // create this client
 //        createPeer()
 
-        // initiate UI
-        //eventManager.push(new P2PClient.FileDownloadEvent("localClientName", new File("localFileDestination"), "remotePeerName", "remotePeerGroup", "remoteResource"));
+            // initiate UI
+            //eventManager.push(new P2PClient.FileDownloadEvent("localClientName", new File("localFileDestination"), "remotePeerName", "remotePeerGroup", "remoteResource"));
 
 
-        //notes for ui
+            //notes for ui
         /*user can type "create client", client1 download fileX from client2
         need instance of start download, eventmanager in main
 
@@ -75,112 +86,115 @@ public class Main {
 
 
         */
-        //display menu of commands
+            //display menu of commands
 
 
-        do {
+            do {
 
 
-            System.out.println("Commands Menu \n-----------\n");
-            System.out.println("(1) Download file" +
-                    "(2) Create peer" +
-                    "(3) Review/Create logs" +
-                    "(4) Shutdown target client"+
-                    "(0) Exit client"); //can come back to this one
+                System.out.println("Commands Menu \n-----------\n");
+                System.out.println("(1) Download file" +
+                        "(2) Create peer" +
+                        "(3) Review/Create logs" +
+                        "(4) Shutdown target client" +
+                        "(0) Exit client"); //can come back to this one
 
-            int user_command = Integer.parseInt(scan.nextLine());
+                int user_command = Integer.parseInt(scan.nextLine());
 
-            //switch statement to take argument for menu of commands
-            switch (user_command) {
-                case 1:
-                    System.out.println("Menu Options \n------------\n");
-                    System.out.println("(1) Add Remote Client, Local Client, Add Remote Group, Target Resource, Add Path Name\n (2)Push Download\n");
-                    int command_choice = Integer.parseInt(scan.nextLine());
-                    switch (command_choice) {
+                //switch statement to take argument for menu of commands
+                switch (user_command) {
+                    case 1:
+                        System.out.println("Menu Options \n------------\n");
+                        System.out.println("(1) Add Remote Client, Local Client, Add Remote Group, Target Resource, Add Path Name\n (2)Push Download\n");
+                        int command_choice = Integer.parseInt(scan.nextLine());
+                        switch (command_choice) {
 
 
-                        //make input mandatory : default casing
-                        case 1:
-                            System.out.println("Add Remote Client");
-                            remote_client = scan.nextLine();
-                            System.out.println("Add Local Client");
-                            local_client = scan.nextLine();
-                            System.out.println("Add Remote Group");
-                            remote_group = scan.nextLine();
-                            System.out.println("Add Target Resource");
-                            target_resource = scan.nextLine();
-                            System.out.println("Add Path Name");
-                            path_name = scan.nextLine();
-                        case 2:
-                            //"download \"FileX\" from \"user1\" of \"group1\" to \"user2\" as \"/path/to/file\""
-                            System.out.println("Download \"" + target_resource + "\" from \"" + remote_client + "\" of \" " + remote_group + "\" to \"" + local_client + "\" as \" " + path_name + "\"");
-                            System.out.println("Are you ready to push the dowload? y/n");
-                            char download_choice = scan.nextLine().charAt(0);
-                            switch (download_choice) {
-                                case 'y':
-                                case 'Y':
-                                    Event e = new DownloadCommandEvent(local_client, new File(path_name), remote_client, remote_group, target_resource);
-                                    eventManager.push(e);
-                                    break;
-                                case 'n':
-                                case 'N':
-                                    System.out.println("Returning to Menu");
-                                    break;
-                                default:
-                                    System.out.println("Wrong or invalid input");
+                            //make input mandatory : default casing
+                            case 1:
+                                System.out.println("Add Remote Client");
+                                remote_client = scan.nextLine();
+                                System.out.println("Add Local Client");
+                                local_client = scan.nextLine();
+                                System.out.println("Add Remote Group");
+                                remote_group = scan.nextLine();
+                                System.out.println("Add Target Resource");
+                                target_resource = scan.nextLine();
+                                System.out.println("Add Path Name");
+                                path_name = scan.nextLine();
+                            case 2:
+                                //"download \"FileX\" from \"user1\" of \"group1\" to \"user2\" as \"/path/to/file\""
+                                System.out.println("Download \"" + target_resource + "\" from \"" + remote_client + "\" of \" " + remote_group + "\" to \"" + local_client + "\" as \" " + path_name + "\"");
+                                System.out.println("Are you ready to push the dowload? y/n");
+                                char download_choice = scan.nextLine().charAt(0);
+                                switch (download_choice) {
+                                    case 'y':
+                                    case 'Y':
+                                        Event e = new DownloadCommandEvent(local_client, new File(path_name), remote_client, remote_group, target_resource);
+                                        eventManager.push(e);
+                                        break;
+                                    case 'n':
+                                    case 'N':
+                                        System.out.println("Returning to Menu");
+                                        break;
+                                    default:
+                                        System.out.println("Wrong or invalid input");
 
-                            }
+                                }
 
-                    }break;
-                case 2:
-                    System.out.println("What is file location of your peer?: ");
-                    String configFileLoc = scan.nextLine();
-                    createPeer(p2pClientSpace, eventManager, configFileLoc);
-                    break;
-                case 3:
-                    System.out.println("(1)Review Logs\n(2)Add Log");
-                    int log_choice = Integer.parseInt(scan.nextLine());
-                    if(log_choice == 1){
-
-                    }else if(log_choice == 2){
-                        System.out.println("What message do you want to add");
-                        String log_message= scan.next();
-                        Logging.log(Level.INFO, log_message);
-                        System.out.println("\n\nLog message \"" + log_message + "\" was pushed.");
-
-                    } else{
-                        System.out.println("Invalid input..\nReturning to Menu.");
-                    }
-
-                    break;
-                case 4:
-                    //shutdown indv client
-                    String client_name;
-                    System.out.println("\n\nEnter target client to shut down");
-                    client_name = scan.next();
-                    System.out.println("Shutting down client \"" + client_name + "\" in...");
-                    int countdown = 3;
-                    while (countdown >0) {
-                        try {
-                            Thread.sleep(1000);
-                            System.out.println(countdown-- + "...");
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
                         }
-                    }
-                    eventManager.push(new ShutdownEvent(client_name));
-                    break;
-                case 0:
-                    exit_option = 0;
-                    break;
-                default:
-                    System.out.println("Error: Incorrect input try again");
+                        break;
+                    case 2:
+                        System.out.println("What is file location of your peer?: ");
+                        String configFileLoc = scan.nextLine();
+                        createPeer(p2pClientSpace, eventManager, configFileLoc);
+                        break;
+                    case 3:
+                        System.out.println("(1)Review Logs\n(2)Add Log");
+                        int log_choice = Integer.parseInt(scan.nextLine());
+                        if (log_choice == 1) {
 
-            }
-        }while(exit_option != 0);
+                        } else if (log_choice == 2) {
+                            System.out.println("What message do you want to add");
+                            String log_message = scan.next();
+                            Logging.log(Level.INFO, log_message);
+                            System.out.println("\n\nLog message \"" + log_message + "\" was pushed.");
+                        } else {
+                            System.out.println("Invalid input..\nReturning to Menu.");
+                        }
 
-        // software shutdown
-        shutdown(p2pClientSpace, eventManager, eventManagerThread, scan);
+                        break;
+                    case 4:
+                        //shutdown indv client
+                        String client_name;
+                        System.out.println("\n\nEnter target client to shut down");
+                        client_name = scan.next();
+                        System.out.println("Shutting down client \"" + client_name + "\" in...");
+                        int countdown = 3;
+                        while (countdown > 0) {
+                            try {
+                                Thread.sleep(1000);
+                                System.out.println(countdown-- + "...");
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                        eventManager.push(new ShutdownEvent(client_name));
+                        break;
+                    case 0:
+                        exit_option = 0;
+                        break;
+                    default:
+                        System.out.println("Error: Incorrect input try again");
+
+                }
+            } while (exit_option != 0);
+
+            // software shutdown
+            shutdown(p2pClientSpace, eventManager, eventManagerThread, scan);
+        } catch (FileNotFoundException fnfex) {
+            System.err.println("Error while starting printstream on new log file: \"" + logFile.getName() + "\": " + fnfex.getMessage());
+        }
     }
 
 
@@ -208,6 +222,15 @@ public class Main {
      * Closes all resources and threads.
      */
     private static void shutdown(Map<String, PeerObject> peerSpace, AsynchronousEventManager eventManager, Thread eventManagerThread, Scanner inputScanner) {
+        try {
+            Object waitObj = new Object();
+            synchronized (waitObj) {
+                waitObj.wait(5000);
+            }
+        } catch (InterruptedException iex) {
+            System.err.println("Error while delaying shutdown. This should not happen.");
+            return;
+        }
         inputScanner.close();
         for (String clientNameKey : peerSpace.keySet()) {
             Logging.log(Level.INFO, "Issuing shutdown command to peer \"" + clientNameKey + "\"...");
@@ -236,6 +259,4 @@ public class Main {
         }
         return null;
     }
-
-
 }

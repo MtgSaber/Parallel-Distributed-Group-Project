@@ -100,7 +100,7 @@ public final class Logging {
         return true;
     }
 
-    private static String getTimeStamp() {
+    public static String getTimeStamp() {
         return ZonedDateTime.ofInstant(Instant.now(), zoneId).format(format);
     }
 
