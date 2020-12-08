@@ -10,6 +10,7 @@ import net.mtgsaber.uni_projects.cs4504groupproject.config.PeerObjectConfig;
 import net.mtgsaber.uni_projects.cs4504groupproject.events.DownloadCommandEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.events.ShutdownEvent;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
+import net.mtgsaber.uni_projects.cs4504groupproject.util.Stats;
 import net.mtgsaber.uni_projects.cs4504groupproject.util.Utils;
 
 // Java libraries
@@ -22,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.logging.Level;
+import java.util.zip.Inflater;
 
 public class Main {
     public static void main(String[] args) {
@@ -189,6 +191,21 @@ public class Main {
 
                 }
             } while (exit_option != 0);
+
+            Logging.log(Level.INFO, "Beginning delay prior to stats calculations...");
+            try {
+                Object waitObj = new Object();
+                synchronized (waitObj) {
+                    waitObj.wait(5000);
+                }
+            } catch (InterruptedException iex) {
+                System.err.println("Error while delaying stats. This should not happen.");
+            }
+            Logging.log(Level.INFO, "Delay finished. System statistics for this session:");
+            for (Map.Entry<String, Double> entry : Stats.evaluateStatistics().entrySet())
+                Logging.log(Level.INFO, "\t" + entry.getKey() + ": " + entry.getValue());
+            Logging.log(Level.INFO, "Beginning delay prior to system shutdown...");
+            shutdown(p2pClientSpace, eventManager, eventManagerThread, scan);
 
             // software shutdown
             shutdown(p2pClientSpace, eventManager, eventManagerThread, scan);

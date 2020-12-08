@@ -13,13 +13,11 @@ import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.client.ResourceR
 import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.client.RoutingRequest;
 import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.server.ResourceResponse;
 import net.mtgsaber.uni_projects.cs4504groupproject.jsonobjects.server.RoutingResponse;
-import net.mtgsaber.uni_projects.cs4504groupproject.util.Container;
-import net.mtgsaber.uni_projects.cs4504groupproject.util.Logging;
-import net.mtgsaber.uni_projects.cs4504groupproject.util.SocketAction;
-import net.mtgsaber.uni_projects.cs4504groupproject.util.Utils;
+import net.mtgsaber.uni_projects.cs4504groupproject.util.*;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
@@ -268,6 +266,9 @@ public class PeerObject implements Consumer<Event> {
     private void actionAcceptConnection(Socket sock) {
         Thread socketThread = new Thread(
                 () -> {
+                    long startTime, endTime;
+                    String message;
+
                     Logging.log(Level.INFO, "Accepted connection from " + sock.getRemoteSocketAddress().toString() + ".");
                     Logging.log(Level.INFO, "Opening reader and writer on the socket...");
                     try ( // these are text-based and can be used to transfer string messages. I (Andrew) prefer to transfer class serializations by using NET_GSON.
@@ -275,9 +276,16 @@ public class PeerObject implements Consumer<Event> {
                           BufferedReader sockTextReader = new BufferedReader(new InputStreamReader(sock.getInputStream()));
                     ) {
                         Logging.log(Level.INFO, "Successfully opened reader and writer on the socket.");
-                        Logging.log(Level.INFO, "Awaiting service request...");
+
                         // use the socket to determine what kind of request this is.
-                        ConnectionRequest connectionRequest = NET_GSON.fromJson(sockTextReader.readLine(), ConnectionRequest.class);
+                        Logging.log(Level.INFO, "Awaiting service request...");
+                        startTime = System.nanoTime();
+                        message = sockTextReader.readLine();
+                        endTime = System.nanoTime();
+                        Stats.incrementTransmissionTimeCnt(endTime - startTime);
+                        Stats.incrementMessageCnt(1);
+                        Stats.incrementMessageSizeCnt(message.getBytes(Charset.defaultCharset()).length);
+                        ConnectionRequest connectionRequest = NET_GSON.fromJson(message, ConnectionRequest.class);
                         Logging.log(Level.INFO, "Service request received: " + LOG_GSON.toJson(connectionRequest, ConnectionRequest.class));
 
                         if (connectionRequest.SERVICE.equals(ConnectionRequest.Services.RESOURCE_REQUEST)) {
@@ -327,6 +335,9 @@ public class PeerObject implements Consumer<Event> {
      * @param sockTextWriter a text-based writer on the socket. used to write JSON serializations to the remote client.
      */
     private void uploadFile(Socket socket, BufferedReader sockTextReader, PrintWriter sockTextWriter) {
+        long startTime, endTime;
+        String message;
+
         // upload file to remote peer
         try {
             // read the request message from the remote client
@@ -351,10 +362,16 @@ public class PeerObject implements Consumer<Event> {
                 sockTextWriter.println(
                         NET_GSON.toJson(new ResourceResponse(true, resource.length()), ResourceResponse.class)
                 );
-                Logging.log(Level.INFO, "Response sent, awaiting Ack...");
 
+                Logging.log(Level.INFO, "Response sent, awaiting Ack...");
+                startTime = System.nanoTime();
+                message = sockTextReader.readLine();
+                endTime = System.nanoTime();
+                Stats.incrementTransmissionTimeCnt(endTime - startTime);
+                Stats.incrementMessageCnt(1);
+                Stats.incrementMessageSizeCnt(message.getBytes(Charset.defaultCharset()).length);
                 // wait for the client to confirm that it is ready to begin the transfer
-                Ack ack = NET_GSON.fromJson(sockTextReader.readLine(), Ack.class);
+                Ack ack = NET_GSON.fromJson(message, Ack.class);
                 Logging.log(Level.INFO, "Ack received: " + LOG_GSON.toJson(ack, Ack.class));
 
                 // if the client is ready,
@@ -370,10 +387,18 @@ public class PeerObject implements Consumer<Event> {
         /* ~~~~~~~~~~~~ gotten (and modified) from https://stackoverflow.com/questions/9520911/java-sending-and-receiving-file-byte-over-sockets ~~~~~~~~~~~~~~~~ */
                         int count;
                         byte[] buffer = new byte[4096]; // or 4096, or more
+                        int countSum = 0;
+
+                        startTime = System.nanoTime();
                         while ((count = fileInput.read(buffer)) > 0) {
                             outBytesStream.write(buffer, 0, count);
                             outBytesStream.flush();
+                            countSum += count;
                         }
+                        endTime = System.nanoTime();
+                        Stats.incrementTransmissionTimeCnt(endTime - startTime);
+                        Stats.incrementMessageCnt(1);
+                        Stats.incrementBytesTransferredCnt(countSum);
         /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
                     } catch (FileNotFoundException fnfex) {
                         // log the error
@@ -396,9 +421,22 @@ public class PeerObject implements Consumer<Event> {
      * The socket has already been used to decide which action to call, and this is the action to call.
      */
     private void processRoutingRequest(Socket socket, BufferedReader sockTextReader, PrintWriter sockTextWriter) {
+        long startTime, endTime;
+        String message;
         try {
-            RoutingRequest request = NET_GSON.fromJson(sockTextReader.readLine(), RoutingRequest.class);
+            startTime = System.nanoTime();
+            message = sockTextReader.readLine();
+            endTime = System.nanoTime();
+            Stats.incrementTransmissionTimeCnt(endTime - startTime);
+            Stats.incrementMessageCnt(1);
+            Stats.incrementMessageSizeCnt(message.getBytes(Charset.defaultCharset()).length);
+            RoutingRequest request = NET_GSON.fromJson(message, RoutingRequest.class);
+
+            startTime = System.nanoTime();
             PeerRoutingData routingData = CONFIG.getPeer(request.TARGET_PEER_GROUP, request.TARGET_PEER_NAME);
+            endTime = System.nanoTime();
+            Stats.incrementRoutingTableLookupTimeCnt(endTime - startTime);
+            Stats.incrementRoutingTableLookupCnt(1);
             if (routingData == null) {
                 // this could block for a little bit, so make sure the socket doesn't close. whatever that entails.
                 routingData = issueRoutingRequest(request.TARGET_PEER_NAME, request.TARGET_PEER_GROUP);
@@ -477,23 +515,23 @@ public class PeerObject implements Consumer<Event> {
      *
      * This is used by the performDownload() and processRoutingRequest() methods.
      * @param targetPeerName the name of the peer whose routing data we are requesting
-     * @param targerPeerGroup the name of the group that the target peer is a member of
+     * @param targetPeerGroup the name of the group that the target peer is a member of
      * @return the PeerRoutingData of the target peer, null if it could not be found.
      */
-    private PeerRoutingData issueRoutingRequest(String targetPeerName, String targerPeerGroup) {
+    private PeerRoutingData issueRoutingRequest(String targetPeerName, String targetPeerGroup) {
         // try the cache/routing table first
-        Logging.log(Level.INFO, "Attempting to find peer " + targerPeerGroup + "." + targetPeerName + " in cache/table...");
-        PeerRoutingData peerRoutingData = CONFIG.getPeer(targerPeerGroup, targetPeerName);
+        Logging.log(Level.INFO, "Attempting to find peer " + targetPeerGroup + "." + targetPeerName + " in cache/table...");
+        PeerRoutingData peerRoutingData = CONFIG.getPeer(targetPeerGroup, targetPeerName);
 
         // if it wasn't in the cache/routing table,
         if (peerRoutingData == null) {
             // we need the routing data for the superpeer we need to contact
             PeerRoutingData superPeerRoutingData;
             if (CONFIG.SELF.IS_SUPER_PEER) {
-                Logging.log(Level.INFO, "Attempting to locate superpeer for group " + targerPeerGroup + "...");
-                superPeerRoutingData = CONFIG.getSuperPeer(targerPeerGroup); // we should have the routing data for the correct superpeer
+                Logging.log(Level.INFO, "Attempting to locate superpeer for group " + targetPeerGroup + "...");
+                superPeerRoutingData = CONFIG.getSuperPeer(targetPeerGroup); // we should have the routing data for the correct superpeer
                 if (superPeerRoutingData == null) {
-                    Logging.log(Level.INFO, "Failed to locate superpeer for group " + targerPeerGroup + "...");
+                    Logging.log(Level.INFO, "Failed to locate superpeer for group " + targetPeerGroup + "...");
                     return null; // if we don't then we can't get the target peer's routing data.
                 }
             } else {
@@ -505,6 +543,9 @@ public class PeerObject implements Consumer<Event> {
             Container<Thread> socketThreadContainer = new Container<>(null); // used to find the thread that was created for the routing request socket, and is also used as a synchronization lock.
             Logging.log(Level.INFO, "Calling openSocket() for routing request...");
             openSocket(superPeerRoutingData.IP_ADDRESS, superPeerRoutingData.HANDSHAKE_PORT, socket -> {
+                long startTime, endTime;
+                String message;
+
                 Logging.log(Level.INFO, "Started socket thread for issueRoutingRequest().");
                 // let the thread calling issueRoutingRequest() know what thread was created so it can block until we're finished here.
                 socketThreadContainer.set(Thread.currentThread());
@@ -513,7 +554,6 @@ public class PeerObject implements Consumer<Event> {
                     socketThreadContainer.notify();
                 }
             /* ~~~~~~~~~~~~~~~~~~~ This is the actual net code for performing the routing table lookup request ~~~~~~~~~~~~~~~~~~~~~~ */
-
                 Logging.log(Level.INFO, "Worker thread has been notified to join this socket thread, beginning download...");
                 try ( // open up text based flows for JSON object transfers
                         PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
@@ -523,19 +563,33 @@ public class PeerObject implements Consumer<Event> {
                     Logging.log(Level.INFO, "Sending connection request...");
                     // send an initial connection request with our desired service.
                     writer.println(NET_GSON.toJson(new ConnectionRequest(superPeerRoutingData, ConnectionRequest.Services.ROUTING_REQUEST), ConnectionRequest.class));
+
                     // wait for server to respond.
                     Logging.log(Level.INFO, "Awaiting Ack...");
-                    Ack connectionAck = NET_GSON.fromJson(reader.readLine(), Ack.class);
+                    startTime = System.nanoTime();
+                    message = reader.readLine();
+                    endTime = System.nanoTime();
+                    Stats.incrementTransmissionTimeCnt(endTime - startTime);
+                    Stats.incrementMessageCnt(1);
+                    Stats.incrementMessageSizeCnt(message.getBytes(Charset.defaultCharset()).length);
+                    Ack connectionAck = NET_GSON.fromJson(message, Ack.class);
                     Logging.log(Level.INFO, "Ack received.");
+
                     if (connectionAck.IS_ACKNOWLEDGED) {
                         Logging.log(Level.INFO, "Request accepted, sending Routing request...");
                         // superpeer has accepted our connection and is ready for our request
-                        writer.println(NET_GSON.toJson(new RoutingRequest(targetPeerName, targerPeerGroup), RoutingRequest.class));
+                        writer.println(NET_GSON.toJson(new RoutingRequest(targetPeerName, targetPeerGroup), RoutingRequest.class));
                         Logging.log(Level.INFO, "Routing request sent.");
                         Logging.log(Level.INFO, "Awaiting Routing response...");
                         // NOTE: usually you don't want to hold an objects monitor until you have the data you need to use its behaviors, but it's okay here since the only other thread that uses it should be joined onto this thread.
                         synchronized (routingResponse) {
-                            routingResponse.set(NET_GSON.fromJson(reader.readLine(), RoutingResponse.class).ROUTING_DATA);
+                            startTime = System.nanoTime();
+                            message = reader.readLine();
+                            endTime = System.nanoTime();
+                            Stats.incrementTransmissionTimeCnt(endTime - startTime);
+                            Stats.incrementMessageCnt(1);
+                            Stats.incrementMessageSizeCnt(message.getBytes(Charset.defaultCharset()).length);
+                            routingResponse.set(NET_GSON.fromJson(message, RoutingResponse.class).ROUTING_DATA);
                             Logging.log(Level.INFO, "Routing response received: " + LOG_GSON.toJson(routingResponse.get(), PeerRoutingData.class));
                         }
                     } else {
@@ -603,6 +657,8 @@ public class PeerObject implements Consumer<Event> {
                         } else {
                             openSocket(targetPeerRoutingData.IP_ADDRESS, targetPeerRoutingData.HANDSHAKE_PORT,
                                     socket -> {
+                                        long startTime, endTime;
+                                        String message;
                                         Logging.log(Level.INFO, "Opening reader and writer for socket...");
                                         try ( // open up text based flows for JSON object transfers
                                               PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
@@ -619,16 +675,32 @@ public class PeerObject implements Consumer<Event> {
                                                             ConnectionRequest.class
                                                     )
                                             );
-                                            Logging.log(Level.INFO, "Request sent, awaiting ack...");
+
                                             // wait for server to respond.
-                                            Ack connectionAck = NET_GSON.fromJson(reader.readLine(), Ack.class);
+                                            Logging.log(Level.INFO, "Request sent, awaiting ack...");
+                                            startTime = System.nanoTime();
+                                            message = reader.readLine();
+                                            endTime = System.nanoTime();
+                                            Stats.incrementTransmissionTimeCnt(endTime - startTime);
+                                            Stats.incrementMessageCnt(1);
+                                            Stats.incrementMessageSizeCnt(message.getBytes(Charset.defaultCharset()).length);
+                                            Ack connectionAck = NET_GSON.fromJson(message, Ack.class);
+
                                             Logging.log(Level.INFO, "Ack received: " + LOG_GSON.toJson(connectionAck, Ack.class));
                                             if (connectionAck.IS_ACKNOWLEDGED) {
                                                 Logging.log(Level.INFO, "Sending resource request...");
                                                 // superpeer has accepted our connection and is ready for our request
                                                 writer.println(NET_GSON.toJson(new ResourceRequest(e.REMOTE_RESOURCE), ResourceRequest.class));
+
+                                                // get the response from the server
                                                 Logging.log(Level.INFO, "request sent, awaiting response...");
-                                                ResourceResponse response = NET_GSON.fromJson(reader.readLine(), ResourceResponse.class);
+                                                startTime = System.nanoTime();
+                                                message = reader.readLine();
+                                                endTime = System.nanoTime();
+                                                Stats.incrementTransmissionTimeCnt(endTime - startTime);
+                                                Stats.incrementMessageCnt(1);
+                                                Stats.incrementMessageSizeCnt(message.getBytes(Charset.defaultCharset()).length);
+                                                ResourceResponse response = NET_GSON.fromJson(message, ResourceResponse.class);
                                                 Logging.log(Level.INFO, "response received: " + LOG_GSON.toJson(response, ResourceResponse.class));
 
                                                 Logging.log(Level.INFO, "Sending ack...");
@@ -647,13 +719,21 @@ public class PeerObject implements Consumer<Event> {
                                                             InputStream socketByteInput = socket.getInputStream()
                                                     ) {
                                                         Logging.log(Level.INFO, "Transfer resource opened, beginning transfer...");
-                                                    /* ~~~ gotten from https://stackoverflow.com/questions/9520911/java-sending-and-receiving-file-byte-over-sockets ~~~ */
+                                                    /* ~~~ (modified) gotten from https://stackoverflow.com/questions/9520911/java-sending-and-receiving-file-byte-over-sockets ~~~ */
                                                         int count;
                                                         byte[] buffer = new byte[4096];
+                                                        int countSum = 0;
+
+                                                        startTime = System.nanoTime();
                                                         while ((count = socketByteInput.read(buffer)) > 0) {
                                                             fos.write(buffer, 0, count);
                                                             fos.flush();
+                                                            countSum += count;
                                                         }
+                                                        endTime = System.nanoTime();
+                                                        Stats.incrementTransmissionTimeCnt(endTime - startTime);
+                                                        Stats.incrementMessageCnt(1);
+                                                        Stats.incrementBytesTransferredCnt(countSum);
                                                     /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
                                                         Logging.log(Level.INFO, "Done writing to file.");

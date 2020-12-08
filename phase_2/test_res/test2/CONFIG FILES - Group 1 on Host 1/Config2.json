@@ -1,0 +1,35 @@
+{
+  "SelfParams": {
+      "NAME": "Peer2",
+      "IP_ADDRESS": "127.0.0.1",
+      "GROUP": "Group1",
+      "IS_SUPER_PEER": false,
+      "HANDSHAKE_PORT": 65010,
+      "CREATION_TIME": 1607047988635
+    },
+  "GroupSuperpeerInfo": {
+    "NAME": "Peer1",
+    "IP_ADDRESS": "127.0.0.1",
+    "GROUP": "Group1",
+    "IS_SUPER_PEER": true,
+    "HANDSHAKE_PORT": 65000,
+    "CREATION_TIME": 1607047988635
+  },
+  "RoutingCacheEntryLifespan": 600000,
+  "ResourceRegistry": {
+    "ResourceNames": [
+      "TextRes",
+	  "ImageRes",
+	  "AudioRes",
+	  "VideoRes"
+    ],
+    "ResourceFilePaths": [
+      "./phase_2/test_res/test2/CONFIG FILES - Group 1 on Host 1/text_res/text_3KB_2.txt",
+	  "./phase_2/test_res/test2/CONFIG FILES - Group 1 on Host 1/img_res/image_184KB_2.png",
+	  "./phase_2/test_res/test2/CONFIG FILES - Group 1 on Host 1/audio_res/audio_98.9KB_2.wav",
+	  "./phase_2/test_res/test2/CONFIG FILES - Group 1 on Host 1/video_res/video_49066KB_2.mkv"
+    ]
+  },
+  "SuperpeerRoutingTable": [],
+  "GroupRoutingTable": []
+}
